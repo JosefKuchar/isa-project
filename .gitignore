@@ -1,0 +1,5 @@
+*.o
+*.d
+tftp-client
+tftp-server
+*.zip
