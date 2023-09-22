@@ -2,6 +2,7 @@
 #include "arpa/inet.h"
 #include "client-args.h"
 #include "enums.h"
+#include "packet.h"
 #include "utils.h"
 
 int main(int argc, char* argv[]) {
@@ -27,30 +28,21 @@ int main(int argc, char* argv[]) {
     char buffer[1024] = {0};
     std::string line;
 
+    Packet packet(buffer);
+
     // Create socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         std::cerr << "Socket creation error." << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    std::string octet = "netascii";
-
-    char* buffer_p = &buffer[0];
-    *(short*)(buffer_p) = htons((int)Opcode::WRQ);
-    buffer_p += 2;
-    args.dest_filepath.copy((char*)buffer_p, args.dest_filepath.length());
-    buffer_p += args.dest_filepath.length() + 1;
-    octet.copy((char*)buffer_p, octet.length());
-    buffer_p += octet.length() + 1;
-
-    std::cout << (int)buffer[0] << std::endl;
-    std::cout << (int)buffer[1] << std::endl;
+    packet.createWRQ(args.dest_filepath, "netascii");
 
     std::cout << "Sending" << std::endl;
 
     print_packet(buffer, recv_address);
 
-    sendto(sock, buffer, buffer_p - buffer, 0, (const struct sockaddr*)&args.address,
+    sendto(sock, buffer, packet.getSize(), 0, (const struct sockaddr*)&args.address,
            sizeof(args.address));
 
     std::cout << "Waiting" << std::endl;
