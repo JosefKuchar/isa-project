@@ -22,8 +22,28 @@ class Packet {
     /**
      * Create DATA packet
      * @param block Block number
+     * @param buffer Data to be sent
+     * @param len Length of data
      */
-    void createDATA(uint16_t block);
+    void createDATA(uint16_t block, char* buffer, size_t len);
+
+    /**
+     * Add Blksize option to packet
+     * @param size Block size
+     */
+    void addBlksizeOption(size_t size);
+
+    /**
+     * Add Timeout option to packet
+     * @param time Timeout in secs
+     */
+    void addTimeoutOption(size_t time);
+
+    /**
+     * Add Transfer size option to packet
+     * @param tsize Transfer size in octets
+     */
+    void addTsizeOption(size_t tsize);
 
    private:
     void add16b(uint16_t data);

@@ -1,5 +1,7 @@
 #include "packet.h"
 #include <arpa/inet.h>
+#include <cstring>
+#include <string>
 #include "enums.h"
 
 // TODO Check lengths - buffer overflow
@@ -48,10 +50,36 @@ void Packet::createWRQ(std::string filepath, std::string mode) {
     this->addString(mode);
 }
 
-void Packet::createDATA(uint16_t block) {
+void Packet::createDATA(uint16_t block, char* buffer, size_t len) {
     this->resetPointer();
     this->addOpcode(Opcode::DATA);
     this->add16b(block);
+    // Copy data
+    std::memcpy(this->buffer_p, buffer, len);
+    this->buffer_p += len;
+}
+
+void Packet::addBlksizeOption(size_t size) {
+    if (size < 8 || size > 65464) {
+        // TODO: Throw error
+    }
+
+    this->addString("blksize");
+    this->addString(std::to_string(size));
+}
+
+void Packet::addTimeoutOption(size_t time) {
+    if (time < 1 || time > 255) {
+        // TODO: Throw error
+    }
+
+    this->addString("timeout");
+    this->addString(std::to_string(time));
+}
+
+void Packet::addTsizeOption(size_t tsize) {
+    this->addString("tsize");
+    this->addString(std::to_string(tsize));
 }
 
 Packet::Packet(char* buffer) {

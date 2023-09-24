@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
     }
 
     packet.createWRQ(args.dest_filepath, "netascii");
+    packet.addBlksizeOption(1024);
 
     std::cout << "Sending" << std::endl;
 
