@@ -69,10 +69,9 @@ Packet parsePacket(char* buffer, size_t len) {
             oack.options = parseOptions(buffer, offset, len);
             return oack;
         }
-        default:
-            // Error handling
-            break;
     }
+
+    return UnknownPacket();
 }
 
 /**

@@ -37,7 +37,11 @@ struct OACKPacket {
     std::vector<std::pair<std::string, std::string>> options;
 };
 
-typedef std::variant<RRQPacket, WRQPacket, DATAPacket, ACKPacket, ERRORPacket, OACKPacket> Packet;
+struct UnknownPacket {};
+
+typedef std::
+    variant<RRQPacket, WRQPacket, DATAPacket, ACKPacket, ERRORPacket, OACKPacket, UnknownPacket>
+        Packet;
 
 /**
  * Parse packet from buffer
