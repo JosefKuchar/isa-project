@@ -18,7 +18,7 @@ tftp-client: $(OBJS) tftp-client.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 tftp-server: $(OBJS) tftp-server.o
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lpthread
 
 # Dependecies
 %.o: %.cc %.d

@@ -1,10 +1,19 @@
+#include <thread>
 #include "packet.h"
 #include "server-args.h"
 
-int sock = 0;
+const size_t BUFSIZE = 65535;
+
+void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_t len) {
+    int sock = 0;
+
+    Packet packet = parsePacket(buffer, len);
+    printPacket(packet, client_addr, client_addr);
+}
+
 int main(int argc, char* argv[]) {
     ServerArgs args(argc, argv);
-
+    int sock = 0;
     int opt = 1;
     char buffer[1024] = {0};
     size_t len = 0;
@@ -34,10 +43,7 @@ int main(int argc, char* argv[]) {
         ssize_t n =
             recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&client_addr, (socklen_t*)&len);
 
-        Packet packet = parsePacket(buffer, n);
-        printPacket(packet, client_addr, args.address);
-
-        return 0;
+        std::thread client_thread(client_handler, client_addr, buffer, n);
     }
 
     return 0;
