@@ -20,12 +20,37 @@ class PacketBuilder {
     void createWRQ(std::string filepath, std::string mode);
 
     /**
+     * Create RRQ packet
+     * @param filepath File path
+     * @param mode Transfer mode
+     */
+    void createRRQ(std::string filepath, std::string mode);
+
+    /**
      * Create DATA packet
      * @param block Block number
      * @param buffer Data to be sent
      * @param len Length of data
      */
     void createDATA(uint16_t block, char* buffer, size_t len);
+
+    /**
+     * Create empty OACK packet
+     */
+    void createOACK();
+
+    /**
+     * Create ACK packet
+     * @param block Block number
+     */
+    void createACK(uint16_t block);
+
+    /**
+     * Create ERROR packet
+     * @param code Error code
+     * @param message Error message
+     */
+    void createERROR(ErrorCode code, std::string message);
 
     /**
      * Add Blksize option to packet

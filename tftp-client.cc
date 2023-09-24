@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     client_addr.sin_port = htons(0);
     socklen_t client_len = sizeof(client_addr);
 
-    int sock, len = 0;
+    int sock, len = sizeof(args.address);
     char buffer[BUFSIZE] = {0};
     std::string line;
 
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
     sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
            sizeof(args.address));
 
-    ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&args.address,
+    ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, MSG_WAITALL, (struct sockaddr*)&args.address,
                          (socklen_t*)&len);
 
     packet = parsePacket(buffer, n);

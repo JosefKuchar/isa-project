@@ -30,10 +30,10 @@ clean:
 	rm -f *.o *.d tftp-client tftp-server xkucha28.zip
 
 run_client: tftp-client
-	./tftp-client -h 127.0.0.1 -t test.txt
+	./tftp-client -p 1234 -h 127.0.0.1 -t test.txt -f tftp-client.cc
 
 run_server: tftp-server
-	./tftp-server files
+	./tftp-server -p 1234 files
 
 zip: clean
 	zip -r xkucha28.zip *

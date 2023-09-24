@@ -51,6 +51,13 @@ void PacketBuilder::createWRQ(std::string filepath, std::string mode) {
     this->addString(mode);
 }
 
+void PacketBuilder::createRRQ(std::string filepath, std::string mode) {
+    this->resetPointer();
+    this->addOpcode(Opcode::RRQ);
+    this->addString(filepath);
+    this->addString(mode);
+}
+
 void PacketBuilder::createDATA(uint16_t block, char* buffer, size_t len) {
     this->resetPointer();
     this->addOpcode(Opcode::DATA);
@@ -58,6 +65,24 @@ void PacketBuilder::createDATA(uint16_t block, char* buffer, size_t len) {
     // Copy data
     std::memcpy(this->buffer_p, buffer, len);
     this->buffer_p += len;
+}
+
+void PacketBuilder::createACK(uint16_t block) {
+    this->resetPointer();
+    this->addOpcode(Opcode::ACK);
+    this->add16b(block);
+}
+
+void PacketBuilder::createOACK() {
+    this->resetPointer();
+    this->addOpcode(Opcode::OACK);
+}
+
+void PacketBuilder::createERROR(ErrorCode code, std::string message) {
+    this->resetPointer();
+    this->addOpcode(Opcode::ERROR);
+    this->add16b((uint16_t)code);
+    this->addString(message);
 }
 
 void PacketBuilder::addBlksizeOption(size_t size) {
