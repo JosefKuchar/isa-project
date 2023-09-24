@@ -3,16 +3,19 @@
 #include <arpa/inet.h>
 #include <string>
 #include <variant>
+#include <vector>
 #include "enums.h"
 
 struct RRQPacket {
     std::string filepath;
     std::string mode;
+    std::vector<std::pair<std::string, std::string>> options;
 };
 
 struct WRQPacket {
     std::string filepath;
     std::string mode;
+    std::vector<std::pair<std::string, std::string>> options;
 };
 
 struct DATAPacket {
@@ -30,10 +33,23 @@ struct ERRORPacket {
     std::string message;
 };
 
-struct OACKPacket {};
+struct OACKPacket {
+    std::vector<std::pair<std::string, std::string>> options;
+};
 
 typedef std::variant<RRQPacket, WRQPacket, DATAPacket, ACKPacket, ERRORPacket, OACKPacket> Packet;
 
+/**
+ * Parse packet from buffer
+ * @param buffer Buffer
+ * @param len Length of buffer
+ */
 Packet parsePacket(char* buffer, size_t len);
 
+/**
+ * Print packet to stderr
+ * @param packet Packet
+ * @param source Source address
+ * @param dest Destination address
+ */
 void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest);

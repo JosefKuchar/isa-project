@@ -6,7 +6,7 @@
 #include "packet-builder.h"
 #include "packet.h"
 
-const size_t BLKSIZE = 512;
+const size_t BLKSIZE = 1024;
 
 int main(int argc, char* argv[]) {
     ClientArgs args(argc, argv);
@@ -43,9 +43,11 @@ int main(int argc, char* argv[]) {
     }
 
     packetBuilder.createWRQ(args.dest_filepath, "netascii");
-    // packet.addBlksizeOption(BLKSIZE);
+    packetBuilder.addBlksizeOption(BLKSIZE);
 
     packet = parsePacket(buffer, packetBuilder.getSize());
+
+    WRQPacket pack = std::get<WRQPacket>(packet);
     printPacket(packet, recv_address, args.address);
 
     sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
