@@ -117,7 +117,7 @@ void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest) {
                 std::cerr << "DATA " << getAddrDstString(source, dest) << " " << p.block
                           << std::endl;
             } else if constexpr (std::is_same_v<T, ACKPacket>) {
-                std::cerr << "ACK " << getAddrString(source) << p.block << std::endl;
+                std::cerr << "ACK " << getAddrString(source) << " " << p.block << std::endl;
             } else if constexpr (std::is_same_v<T, ERRORPacket>) {
                 std::cerr << "ERROR " << getAddrDstString(source, dest) << " " << (int)p.code
                           << " \"" << p.message << "\"" << std::endl;
