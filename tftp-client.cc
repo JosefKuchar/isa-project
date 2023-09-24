@@ -3,8 +3,8 @@
 #include "arpa/inet.h"
 #include "client-args.h"
 #include "enums.h"
+#include "packet-builder.h"
 #include "packet.h"
-#include "utils.h"
 
 const size_t BLKSIZE = 512;
 
@@ -33,7 +33,8 @@ int main(int argc, char* argv[]) {
     char buffer[2048] = {0};
     std::string line;
 
-    Packet packet(buffer);
+    PacketBuilder packetBuilder(buffer);
+    Packet packet;
 
     // Create socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -41,22 +42,20 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    packet.createWRQ(args.dest_filepath, "netascii");
+    packetBuilder.createWRQ(args.dest_filepath, "netascii");
     // packet.addBlksizeOption(BLKSIZE);
 
-    std::cout << "Sending" << std::endl;
+    packet = parsePacket(buffer, packetBuilder.getSize());
+    printPacket(packet, recv_address, args.address);
 
-    print_packet(buffer, recv_address);
-
-    sendto(sock, buffer, packet.getSize(), 0, (const struct sockaddr*)&args.address,
+    sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
            sizeof(args.address));
-
-    std::cout << "Waiting" << std::endl;
 
     ssize_t n =
         recvfrom(sock, (char*)buffer, 1024, 0, (struct sockaddr*)&args.address, (socklen_t*)&len);
 
-    print_packet(buffer, args.address);
+    packet = parsePacket(buffer, n);
+    printPacket(packet, args.address, recv_address);
 
     char file_buf[1024] = {0};
     size_t blen = 0;
@@ -76,17 +75,18 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        packet.createDATA(block_count, file_buf, blen);
+        packetBuilder.createDATA(block_count, file_buf, blen);
+        packet = parsePacket(buffer, packetBuilder.getSize());
+        printPacket(packet, recv_address, args.address);
 
-        print_packet(buffer, recv_address);
-
-        sendto(sock, buffer, packet.getSize(), 0, (const struct sockaddr*)&args.address,
+        sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
                sizeof(args.address));
 
         n = recvfrom(sock, (char*)buffer, 1024, 0, (struct sockaddr*)&args.address,
                      (socklen_t*)&len);
 
-        print_packet(buffer, args.address);
+        packet = parsePacket(buffer, n);
+        printPacket(packet, args.address, recv_address);
 
         bl = ntohs(*(short*)(buffer + 2));
 
