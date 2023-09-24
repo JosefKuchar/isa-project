@@ -29,6 +29,7 @@ void Packet::addOpcode(Opcode opcode) {
  */
 void Packet::addString(std::string str) {
     str.copy(this->buffer_p, str.length());
+    this->buffer_p[str.length()] = 0;
     this->buffer_p += str.length() + 1;
 }
 

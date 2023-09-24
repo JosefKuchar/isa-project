@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <iostream>
 #include "arpa/inet.h"
 #include "client-args.h"
@@ -5,8 +6,12 @@
 #include "packet.h"
 #include "utils.h"
 
+const size_t BLKSIZE = 512;
+
 int main(int argc, char* argv[]) {
     ClientArgs args(argc, argv);
+
+    setbuf(stdout, NULL);
 
     struct sockaddr_in local_addr;
     local_addr.sin_family = AF_INET;
@@ -25,7 +30,7 @@ int main(int argc, char* argv[]) {
     recv_address.sin_addr.s_addr = args.address.sin_addr.s_addr;
 
     int len = 0;
-    char buffer[1024] = {0};
+    char buffer[2048] = {0};
     std::string line;
 
     Packet packet(buffer);
@@ -37,7 +42,7 @@ int main(int argc, char* argv[]) {
     }
 
     packet.createWRQ(args.dest_filepath, "netascii");
-    packet.addBlksizeOption(1024);
+    // packet.addBlksizeOption(BLKSIZE);
 
     std::cout << "Sending" << std::endl;
 
@@ -52,6 +57,45 @@ int main(int argc, char* argv[]) {
         recvfrom(sock, (char*)buffer, 1024, 0, (struct sockaddr*)&args.address, (socklen_t*)&len);
 
     print_packet(buffer, args.address);
+
+    char file_buf[1024] = {0};
+    size_t blen = 0;
+
+    int block_count = 1;
+    int bl = 1;
+    bool good = true;
+
+    while (true) {
+        if (!good) {
+            std::cout << "Block number does not match, resending..." << std::endl;
+        } else {
+            blen = fread(file_buf, 1, BLKSIZE, args.input_file);
+            std::cout << "Read " << blen << " bytes" << std::endl;
+            if (blen == 0) {
+                break;
+            }
+        }
+
+        packet.createDATA(block_count, file_buf, blen);
+
+        print_packet(buffer, recv_address);
+
+        sendto(sock, buffer, packet.getSize(), 0, (const struct sockaddr*)&args.address,
+               sizeof(args.address));
+
+        n = recvfrom(sock, (char*)buffer, 1024, 0, (struct sockaddr*)&args.address,
+                     (socklen_t*)&len);
+
+        print_packet(buffer, args.address);
+
+        bl = ntohs(*(short*)(buffer + 2));
+
+        good = bl == block_count;
+        if (good) {
+            block_count++;
+        }
+        // sleep(1);
+    }
 
     return 0;
 }
