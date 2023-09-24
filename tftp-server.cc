@@ -1,3 +1,4 @@
+#include <fstream>
 #include <iostream>
 #include <thread>
 #include "packet-builder.h"
@@ -37,7 +38,35 @@ void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_
 
     printPacket(packet, client_addr, server_addr);
 
-    for (int i = 0; i < 4; i++) {
+    std::ofstream file;
+    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    WRQPacket p = std::get<WRQPacket>(packet);
+    try {
+        file.open(p.filepath, std::ios::out | std::ios::binary);
+    } catch (std::exception& e) {
+        packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
+        packet = parsePacket(buffer, packetBuilder.getSize());
+        printPacket(packet, server_addr, client_addr);
+        sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
+               sizeof(client_addr));
+    }
+
+    packetBuilder.createACK(0);
+    packet = parsePacket(buffer, packetBuilder.getSize());
+    printPacket(packet, server_addr, client_addr);
+
+    sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
+           sizeof(client_addr));
+
+    for (int i = 1;; i++) {
+        ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&client_addr,
+                             (socklen_t*)&len);
+        packet = parsePacket(buffer, n);
+        printPacket(packet, client_addr, server_addr);
+
+        DATAPacket data = std::get<DATAPacket>(packet);
+        file.write(data.data, data.len);
+
         packetBuilder.createACK(i);
         packet = parsePacket(buffer, packetBuilder.getSize());
         printPacket(packet, server_addr, client_addr);
@@ -45,10 +74,9 @@ void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_
         sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
                sizeof(client_addr));
 
-        ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&client_addr,
-                             (socklen_t*)&len);
-        packet = parsePacket(buffer, n);
-        printPacket(packet, client_addr, server_addr);
+        if (data.len < 512) {
+            break;
+        }
     }
 }
 
@@ -79,6 +107,8 @@ int main(int argc, char* argv[]) {
         perror("bind");
         exit(EXIT_FAILURE);
     }
+
+    std::cout << "Server listening on port " << ntohs(args.address.sin_port) << std::endl;
 
     while (true) {
         ssize_t n =

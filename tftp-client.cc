@@ -6,7 +6,6 @@
 #include "packet-builder.h"
 #include "packet.h"
 
-const size_t BLKSIZE = 1024;
 const size_t BUFSIZE = 65535;
 
 int main(int argc, char* argv[]) {
@@ -28,6 +27,8 @@ int main(int argc, char* argv[]) {
 
     PacketBuilder packetBuilder(buffer);
     Packet packet;
+
+    size_t BLKSIZE = 1024;
 
     // Create socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -59,6 +60,13 @@ int main(int argc, char* argv[]) {
 
     packet = parsePacket(buffer, n);
     printPacket(packet, args.address, client_addr);
+
+    if (std::holds_alternative<ACKPacket>(packet)) {
+        ACKPacket ack = std::get<ACKPacket>(packet);
+        BLKSIZE = 512;
+        std::cout << "Server responded with ACK, falling back to default block size of 512"
+                  << std::endl;
+    }
 
     char file_buf[BLKSIZE] = {0};
     size_t blen = 0;
