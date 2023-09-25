@@ -1,5 +1,7 @@
 #pragma once
 
+const size_t BUFSIZE = 65535;
+
 enum class Opcode {
     RRQ = 1,    // Read request (RRQ)
     WRQ = 2,    // Write request (WRQ)

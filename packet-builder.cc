@@ -44,6 +44,10 @@ size_t PacketBuilder::getSize() {
     return this->buffer_p - this->buffer;
 }
 
+char* PacketBuilder::getBuffer() {
+    return this->buffer;
+}
+
 void PacketBuilder::createWRQ(std::string filepath, std::string mode) {
     this->resetPointer();
     this->addOpcode(Opcode::WRQ);

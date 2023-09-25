@@ -5,8 +5,6 @@
 #include "packet.h"
 #include "server-args.h"
 
-const size_t BUFSIZE = 65535;
-
 void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_t len) {
     int sock = 0, opt = 1;
 

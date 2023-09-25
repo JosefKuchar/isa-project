@@ -1,12 +1,20 @@
 #include <unistd.h>
 #include <iostream>
+#include <memory>
 #include "arpa/inet.h"
 #include "client-args.h"
 #include "enums.h"
 #include "packet-builder.h"
 #include "packet.h"
+#include "utils.h"
 
-const size_t BUFSIZE = 65535;
+enum class State {
+    Start,
+    StartNoOptions,
+    InitSend,
+    Send,
+    End,
+};
 
 int main(int argc, char* argv[]) {
     // Parse arguments
@@ -15,26 +23,26 @@ int main(int argc, char* argv[]) {
     // Turn off buffering so we can see stdout and stderr in sync
     setbuf(stdout, NULL);
 
-    std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
-              << ntohs(args.address.sin_port) << std::endl;
-
+    // Create client address
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
     client_addr.sin_addr.s_addr = INADDR_ANY;
     client_addr.sin_port = htons(0);
     socklen_t client_len = sizeof(client_addr);
 
-    struct timeval tv;
-    tv.tv_sec = 1;
-
-    int sock, len = sizeof(args.address);
+    int sock;
+    size_t BLKSIZE = 1024;
     char buffer[BUFSIZE] = {0};
-    std::string line;
-
+    std::unique_ptr<char[]> file_buf;
+    State state = State::Start;
     PacketBuilder packetBuilder(buffer);
     Packet packet;
 
-    size_t BLKSIZE = 1024;
+    struct timeval tv;
+    tv.tv_sec = 1;
+
+    std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
+              << ntohs(args.address.sin_port) << std::endl;
 
     // Create socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -57,70 +65,93 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    packetBuilder.createWRQ(args.dest_filepath, "octet");
-    packetBuilder.addBlksizeOption(BLKSIZE);
-    packetBuilder.addTimeoutOption(1);
-    packet = parsePacket(buffer, packetBuilder.getSize());
-    printPacket(packet, client_addr, args.address);
-
-    sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
-           sizeof(args.address));
-
-    ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&args.address,
-                         (socklen_t*)&len);
-    if (n < 0) {
-        std::cerr << "Timeout" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    packet = parsePacket(buffer, n);
-    printPacket(packet, args.address, client_addr);
-
-    if (std::holds_alternative<ACKPacket>(packet)) {
-        ACKPacket ack = std::get<ACKPacket>(packet);
-        BLKSIZE = 512;
-        std::cout << "Server responded with ACK, falling back to default block size of 512"
-                  << std::endl;
-    }
-
-    char file_buf[BLKSIZE] = {0};
-    size_t blen = 0;
-
     int block_count = 1;
-    int bl = 1;
-    bool good = true;
+    while (state != State::End) {
+        switch (state) {
+            case State::Start: {
+                // Create and send WRQ packet
+                packetBuilder.createWRQ(args.dest_filepath, "octet");
+                packetBuilder.addBlksizeOption(BLKSIZE);
+                packetBuilder.addTimeoutOption(1);
+                send(sock, packetBuilder, &client_addr, &args.address);
 
-    while (true) {
-        if (!good) {
-            std::cout << "Block number does not match, resending..." << std::endl;
-        } else {
-            blen = fread(file_buf, 1, BLKSIZE, args.input_file);
-            std::cout << "Read " << blen << " bytes" << std::endl;
-            if (blen == 0) {
+                // Recieve packet
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+
+                if (std::holds_alternative<OACKPacket>(packet)) {
+                    // Parse options
+                    state = State::InitSend;
+                } else if (std::holds_alternative<ACKPacket>(packet)) {
+                    // Fall back to default block size
+                    BLKSIZE = 512;
+                    state = State::InitSend;
+                } else if (std::holds_alternative<ERRORPacket>(packet)) {
+                    // Server responded with error, try again without options
+                    state = State::StartNoOptions;
+                } else {
+                    // Unexpected packet
+                    std::cout << "Unexpected packet" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case State::StartNoOptions: {
+                // Create and send WRQ packet
+                packetBuilder.createWRQ(args.dest_filepath, "octet");
+                args.address.sin_port = args.port;
+                send(sock, packetBuilder, &client_addr, &args.address);
+
+                // Recieve packet
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+
+                if (std::holds_alternative<ACKPacket>(packet)) {
+                    // Fall back to default block size
+                    BLKSIZE = 512;
+                    state = State::InitSend;
+                } else {
+                    // Unexpected packet
+                    std::cout << "Unexpected packet" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case State::InitSend: {
+                // Allocate file buffer
+                file_buf = std::make_unique<char[]>(BLKSIZE);
+                state = State::Send;
+                break;
+            }
+            case State::Send: {
+                // Read file
+                size_t blen = fread(file_buf.get(), 1, BLKSIZE, args.input_file);
+                std::cout << "Read " << blen << " bytes" << std::endl;
+                if (blen == 0) {
+                    state = State::End;
+                    break;
+                }
+
+                // Create and send DATA packet
+                packetBuilder.createDATA(block_count + 1, file_buf.get(), blen);
+                send(sock, packetBuilder, &client_addr, &args.address);
+
+                // Recieve packet
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+
+                if (std::holds_alternative<ACKPacket>(packet)) {
+                    ACKPacket ack = std::get<ACKPacket>(packet);
+                    // Check block number
+                    if (ack.block == block_count) {
+                        block_count++;
+                    }
+                } else {
+                    // Unexpected packet
+                    std::cout << "Unexpected packet" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
                 break;
             }
         }
-
-        packetBuilder.createDATA(block_count, file_buf, blen);
-        packet = parsePacket(buffer, packetBuilder.getSize());
-        printPacket(packet, client_addr, args.address);
-
-        sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&args.address,
-               sizeof(args.address));
-
-        n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&args.address,
-                     (socklen_t*)&len);
-
-        packet = parsePacket(buffer, n);
-        printPacket(packet, args.address, client_addr);
-
-        bl = ntohs(*(short*)(buffer + 2));
-
-        good = bl == block_count;
-        if (good) {
-            block_count++;
-        }
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }

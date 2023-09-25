@@ -89,4 +89,10 @@ ClientArgs::ClientArgs(int argc, char** argv) {
             break;
         }
     }
+
+    // Set port
+    this->port = htons(parsed_port);
+
+    // Set len
+    this->len = sizeof(this->address);
 }

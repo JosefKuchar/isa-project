@@ -12,6 +12,11 @@ class PacketBuilder {
      */
     size_t getSize();
 
+    /*
+     * Get packet buffer
+     */
+    char* getBuffer();
+
     /**
      * Create WRQ packet
      * @param filepath File path
