@@ -56,4 +56,4 @@ Packet parsePacket(char* buffer, size_t len);
  * @param source Source address
  * @param dest Destination address
  */
-void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest);
+void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug);

@@ -103,28 +103,33 @@ std::string getOptionsString(std::vector<std::pair<std::string, std::string>> op
     return str;
 }
 
-void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest) {
-    std::visit(
+void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug) {
+    std::string msg = std::visit(
         [source, dest](auto&& p) {
             using T = std::decay_t<decltype(p)>;
             if constexpr (std::is_same_v<T, RRQPacket>) {
-                std::cerr << "RRQ " << getAddrString(source) << " " << p.filepath << " " << p.mode
-                          << getOptionsString(p.options) << std::endl;
+                return "RRQ " + getAddrString(source) + " " + p.filepath + " " + p.mode +
+                       getOptionsString(p.options);
             } else if constexpr (std::is_same_v<T, WRQPacket>) {
-                std::cerr << "WRQ " << getAddrString(source) << " " << p.filepath << " " << p.mode
-                          << getOptionsString(p.options) << std::endl;
+                return "WRQ " + getAddrString(source) + " " + p.filepath + " " + p.mode +
+                       getOptionsString(p.options);
             } else if constexpr (std::is_same_v<T, DATAPacket>) {
-                std::cerr << "DATA " << getAddrDstString(source, dest) << " " << p.block
-                          << std::endl;
+                return "DATA " + getAddrDstString(source, dest) + " " + std::to_string(p.block);
             } else if constexpr (std::is_same_v<T, ACKPacket>) {
-                std::cerr << "ACK " << getAddrString(source) << " " << p.block << std::endl;
+                return "ACK " + getAddrString(source) + " " + std::to_string(p.block);
             } else if constexpr (std::is_same_v<T, ERRORPacket>) {
-                std::cerr << "ERROR " << getAddrDstString(source, dest) << " " << (int)p.code
-                          << " \"" << p.message << "\"" << std::endl;
+                return "ERROR " + getAddrDstString(source, dest) + " " +
+                       std::to_string((int)p.code) + " \"" + p.message + "\"";
             } else if constexpr (std::is_same_v<T, OACKPacket>) {
-                std::cerr << "OACK " << getAddrString(source) << getOptionsString(p.options)
-                          << std::endl;
+                return "OACK " + getAddrString(source) + getOptionsString(p.options);
+            } else {
+                return std::string("Unknown packet");
             }
         },
         packet);
+    if (debug) {
+        std::cout << msg << std::endl;
+    } else {
+        std::cerr << msg << std::endl;
+    }
 }

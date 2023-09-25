@@ -9,10 +9,13 @@
 #include "utils.h"
 
 enum class State {
-    Start,
-    StartNoOptions,
-    InitSend,
+    StartSend,
+    StartSendNoOptions,
+    StartRecieve,
+    StartRecieveNoOptions,
+    InitTransfer,
     Send,
+    Recieve,
     End,
 };
 
@@ -34,7 +37,7 @@ int main(int argc, char* argv[]) {
     size_t BLKSIZE = 1024;
     char buffer[BUFSIZE] = {0};
     std::unique_ptr<char[]> file_buf;
-    State state = State::Start;
+    State state = args.send ? State::StartSend : State::StartRecieve;
     PacketBuilder packetBuilder(buffer);
     Packet packet;
 
@@ -68,7 +71,7 @@ int main(int argc, char* argv[]) {
     int block_count = 1;
     while (state != State::End) {
         switch (state) {
-            case State::Start: {
+            case State::StartSend: {
                 // Create and send WRQ packet
                 packetBuilder.createWRQ(args.dest_filepath, "octet");
                 packetBuilder.addBlksizeOption(BLKSIZE);
@@ -80,14 +83,14 @@ int main(int argc, char* argv[]) {
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
                     // Parse options
-                    state = State::InitSend;
+                    state = State::InitTransfer;
                 } else if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
                     BLKSIZE = 512;
-                    state = State::InitSend;
+                    state = State::InitTransfer;
                 } else if (std::holds_alternative<ERRORPacket>(packet)) {
                     // Server responded with error, try again without options
-                    state = State::StartNoOptions;
+                    state = State::StartSendNoOptions;
                 } else {
                     // Unexpected packet
                     std::cout << "Unexpected packet" << std::endl;
@@ -95,7 +98,7 @@ int main(int argc, char* argv[]) {
                 }
                 break;
             }
-            case State::StartNoOptions: {
+            case State::StartSendNoOptions: {
                 // Create and send WRQ packet
                 packetBuilder.createWRQ(args.dest_filepath, "octet");
                 args.address.sin_port = args.port;
@@ -107,7 +110,7 @@ int main(int argc, char* argv[]) {
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
                     BLKSIZE = 512;
-                    state = State::InitSend;
+                    state = State::InitTransfer;
                 } else {
                     // Unexpected packet
                     std::cout << "Unexpected packet" << std::endl;
@@ -115,10 +118,41 @@ int main(int argc, char* argv[]) {
                 }
                 break;
             }
-            case State::InitSend: {
+            case State::StartRecieve: {
+                // Create and send RRQ packet
+                packetBuilder.createRRQ(args.dest_filepath, "octet");
+                packetBuilder.addBlksizeOption(BLKSIZE);
+                packetBuilder.addTimeoutOption(1);
+                send(sock, packetBuilder, &client_addr, &args.address);
+
+                // Recieve packet
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+
+                if (std::holds_alternative<OACKPacket>(packet)) {
+                    // Parse options
+                    state = State::InitTransfer;
+                } else if (std::holds_alternative<DATAPacket>(packet)) {
+                    // Fall back to default block size
+                    BLKSIZE = 512;
+                    state = State::InitTransfer;
+                } else if (std::holds_alternative<ERRORPacket>(packet)) {
+                    // Server responded with error, try again without options
+                    state = State::StartRecieveNoOptions;
+                } else {
+                    // Unexpected packet
+                    std::cout << "Unexpected packet" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case State::InitTransfer: {
                 // Allocate file buffer
                 file_buf = std::make_unique<char[]>(BLKSIZE);
-                state = State::Send;
+                if (args.send) {
+                    state = State::Send;
+                } else {
+                    state = State::Recieve;
+                }
                 break;
             }
             case State::Send: {
@@ -131,7 +165,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 // Create and send DATA packet
-                packetBuilder.createDATA(block_count + 1, file_buf.get(), blen);
+                packetBuilder.createDATA(block_count, file_buf.get(), blen);
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
@@ -141,6 +175,29 @@ int main(int argc, char* argv[]) {
                     ACKPacket ack = std::get<ACKPacket>(packet);
                     // Check block number
                     if (ack.block == block_count) {
+                        block_count++;
+                    }
+                } else {
+                    // Unexpected packet
+                    std::cout << "Unexpected packet" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case State::Recieve: {
+                // Create and send ACK packet
+                packetBuilder.createACK(block_count);
+                send(sock, packetBuilder, &client_addr, &args.address);
+
+                // Recieve packet
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+
+                if (std::holds_alternative<DATAPacket>(packet)) {
+                    DATAPacket data = std::get<DATAPacket>(packet);
+                    // Check block number
+                    if (data.block == block_count) {
+                        // Write to file
+                        fwrite(data.data, 1, data.len, args.input_file);
                         block_count++;
                     }
                 } else {

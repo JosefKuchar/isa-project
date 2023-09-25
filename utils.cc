@@ -6,8 +6,9 @@ void send(int sock,
           struct sockaddr_in* dest_addr) {
     ssize_t n = sendto(sock, builder.getBuffer(), builder.getSize(), 0,
                        (const struct sockaddr*)dest_addr, sizeof(*dest_addr));
+    // TODO: Handle errors
     Packet packet = parsePacket(builder.getBuffer(), builder.getSize());
-    printPacket(packet, *source_addr, *dest_addr);
+    printPacket(packet, *source_addr, *dest_addr, true);
 }
 
 Packet recieve(int sock,
@@ -20,6 +21,6 @@ Packet recieve(int sock,
         throw TimeoutException();
     }
     Packet packet = parsePacket(buffer, n);
-    printPacket(packet, *source_addr, *dest_addr);
+    printPacket(packet, *source_addr, *dest_addr, false);
     return packet;
 }

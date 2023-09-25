@@ -34,7 +34,7 @@ void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_
         exit(EXIT_FAILURE);
     }
 
-    printPacket(packet, client_addr, server_addr);
+    printPacket(packet, client_addr, server_addr, true);
 
     std::ofstream file;
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -44,14 +44,14 @@ void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_
     } catch (std::exception& e) {
         packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
         packet = parsePacket(buffer, packetBuilder.getSize());
-        printPacket(packet, server_addr, client_addr);
+        printPacket(packet, server_addr, client_addr, true);
         sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
                sizeof(client_addr));
     }
 
     packetBuilder.createACK(0);
     packet = parsePacket(buffer, packetBuilder.getSize());
-    printPacket(packet, server_addr, client_addr);
+    printPacket(packet, server_addr, client_addr, true);
 
     sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
            sizeof(client_addr));
@@ -60,14 +60,14 @@ void client_handler(struct sockaddr_in client_addr, char buffer[BUFSIZE], ssize_
         ssize_t n = recvfrom(sock, (char*)buffer, BUFSIZE, 0, (struct sockaddr*)&client_addr,
                              (socklen_t*)&len);
         packet = parsePacket(buffer, n);
-        printPacket(packet, client_addr, server_addr);
+        printPacket(packet, client_addr, server_addr, false);
 
         DATAPacket data = std::get<DATAPacket>(packet);
         file.write(data.data, data.len);
 
         packetBuilder.createACK(i);
         packet = parsePacket(buffer, packetBuilder.getSize());
-        printPacket(packet, server_addr, client_addr);
+        printPacket(packet, server_addr, client_addr, true);
 
         sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
                sizeof(client_addr));

@@ -11,6 +11,7 @@ class ClientArgs {
     in_port_t port;
     FILE* input_file;
     std::string dest_filepath;
+    bool send;
 
     ClientArgs(int argc, char** argv);
 };

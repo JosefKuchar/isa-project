@@ -70,15 +70,19 @@ ClientArgs::ClientArgs(int argc, char** argv) {
 
     // Parse source file
     if (source_file_set) {
-        // Read from file
-        this->input_file = fopen(source_file.c_str(), "r");
+        // Write to file
+        this->input_file = fopen(source_file.c_str(), "wb");
         if (this->input_file == nullptr) {
             std::cerr << "Error opening file" << std::endl;
             exit(1);
         }
+        // This means we are downloading a file
+        this->send = false;
     } else {
         // Read from stdin
         this->input_file = stdin;
+        // This means we are uploading a file
+        this->send = true;
     }
 
     // Set address
