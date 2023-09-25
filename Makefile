@@ -27,7 +27,7 @@ $(DEPS):
 include $(wildcard $(DEPS))
 
 clean:
-	rm -f *.o *.d tftp-client tftp-server xkucha28.zip
+	rm -f *.o *.d tftp-client tftp-server xkucha28.tar
 
 run_client: tftp-client
 	./tftp-client -p 1234 -h 127.0.0.1 -t test.txt -f tftp-client.cc
@@ -35,5 +35,5 @@ run_client: tftp-client
 run_server: tftp-server
 	./tftp-server -p 1234 files
 
-zip: clean
-	zip -r xkucha28.zip *
+tar: clean
+	tar cvf xkucha28.tar *
