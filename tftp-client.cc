@@ -15,6 +15,9 @@ int main(int argc, char* argv[]) {
     // Turn off buffering so we can see stdout and stderr in sync
     setbuf(stdout, NULL);
 
+    std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
+              << ntohs(args.address.sin_port) << std::endl;
+
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
     client_addr.sin_addr.s_addr = INADDR_ANY;

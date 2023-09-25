@@ -1,5 +1,8 @@
 #include "client-args.h"
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <charconv>
 #include <iostream>
@@ -8,7 +11,11 @@
 ClientArgs::ClientArgs(int argc, char** argv) {
     int option, parsed_port;
     std::string hostname, port, source_file;
+    struct addrinfo hints = {}, *addrs;
     bool hostname_set = false, port_set = false, source_file_set = false, dest_file_set = false;
+    char port_str[16] = {};
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
 
     // Parse command line arguments
     while ((option = getopt(argc, argv, "h:p:f:t:")) != -1) {
@@ -45,8 +52,8 @@ ClientArgs::ClientArgs(int argc, char** argv) {
     }
 
     // Parse address and check if it is valid
-    if (inet_pton(AF_INET, hostname.c_str(), &this->address.sin_addr) <= 0) {
-        std::cerr << "Invalid address" << std::endl;
+    if (getaddrinfo(hostname.c_str(), port_str, &hints, &addrs) != 0) {
+        std::cerr << "Invalid hostname" << std::endl;
         exit(1);
     }
 
@@ -74,6 +81,12 @@ ClientArgs::ClientArgs(int argc, char** argv) {
         this->input_file = stdin;
     }
 
-    this->address.sin_family = AF_INET;
-    this->address.sin_port = htons(parsed_port);
+    // Set address
+    for (auto addr = addrs; addr != nullptr; addr = addr->ai_next) {
+        if (addr->ai_family == AF_INET) {
+            this->address = *(struct sockaddr_in*)addr->ai_addr;
+            this->address.sin_port = htons(parsed_port);
+            break;
+        }
+    }
 }
