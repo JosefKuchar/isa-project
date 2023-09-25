@@ -128,7 +128,7 @@ void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug
         },
         packet);
     if (debug) {
-        std::cout << msg << std::endl;
+        std::cout << ">> " << msg << std::endl;
     } else {
         std::cerr << msg << std::endl;
     }
