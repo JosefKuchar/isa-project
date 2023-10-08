@@ -1,6 +1,8 @@
 #pragma once
 
 const size_t BUFSIZE = 65535;
+const int DEFAULT_BLOCK_SIZE = 512;
+const int DEFAULT_PORT = 69;
 
 enum class Opcode {
     RRQ = 1,    // Read request (RRQ)
@@ -33,5 +35,3 @@ enum class Option {
     Timeout,  // Timeout
     Tsize,    // Transfer size
 };
-
-const int DEFAULT_PORT = 69;

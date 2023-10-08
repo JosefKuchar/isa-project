@@ -7,6 +7,7 @@
 
 ServerArgs::ServerArgs(int argc, char** argv) {
     std::string port;
+    std::string dirPath;
     int parsed_port;
     int port_set = true;
     if (argc != 2 && argc != 4) {
@@ -16,17 +17,17 @@ ServerArgs::ServerArgs(int argc, char** argv) {
 
     // Only root dir path specified
     if (argc == 2) {
-        this->root_dirpath = argv[1];
+        dirPath = argv[1];
         port_set = false;
     } else {
         // Port specified as first (and second) argument
         if (std::string(argv[1]) == "-p") {
             port = argv[2];
-            this->root_dirpath = argv[3];
+            dirPath = argv[3];
             // Port specified as second (and third) argument
         } else if (std::string(argv[2]) == "-p") {
             port = argv[3];
-            this->root_dirpath = argv[1];
+            dirPath = argv[1];
             // Invalid arguments
         } else {
             std::cerr << "Invalid arguments" << std::endl;
@@ -44,6 +45,12 @@ ServerArgs::ServerArgs(int argc, char** argv) {
     } else {
         // Use default port
         parsed_port = DEFAULT_PORT;
+    }
+
+    this->path = std::filesystem::canonical(dirPath);
+    if (!std::filesystem::is_directory(this->path)) {
+        std::cerr << "Invalid root directory path" << std::endl;
+        exit(1);
     }
 
     this->address.sin_family = AF_INET;

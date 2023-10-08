@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
-                    BLKSIZE = 512;
+                    BLKSIZE = DEFAULT_BLOCK_SIZE;
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<ERRORPacket>(packet)) {
                     // Server responded with error, try again without options
@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
-                    BLKSIZE = 512;
+                    BLKSIZE = DEFAULT_BLOCK_SIZE;
                     state = State::InitTransfer;
                 } else {
                     // Unexpected packet
