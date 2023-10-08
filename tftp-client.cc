@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len, -1);
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
                     // Parse options
@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, -1);
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
@@ -121,12 +121,12 @@ int main(int argc, char* argv[]) {
             case State::StartRecieve: {
                 // Create and send RRQ packet
                 packetBuilder.createRRQ(args.dest_filepath, "octet");
-                packetBuilder.addBlksizeOption(BLKSIZE);
-                packetBuilder.addTimeoutOption(1);
+                // packetBuilder.addBlksizeOption(BLKSIZE);
+                // packetBuilder.addTimeoutOption(1);
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, -1);
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
                     // Parse options
@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, 0);
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     ACKPacket ack = std::get<ACKPacket>(packet);
@@ -188,17 +188,22 @@ int main(int argc, char* argv[]) {
                 // Create and send ACK packet
                 packetBuilder.createACK(block_count);
                 send(sock, packetBuilder, &client_addr, &args.address);
+                block_count++;
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, 0);
 
                 if (std::holds_alternative<DATAPacket>(packet)) {
                     DATAPacket data = std::get<DATAPacket>(packet);
                     // Check block number
                     if (data.block == block_count) {
                         // Write to file
+                        std::cout << "Writing " << data.len << " bytes" << std::endl;
                         fwrite(data.data, 1, data.len, args.input_file);
-                        block_count++;
+                    }
+
+                    if (data.len < BLKSIZE) {
+                        state = State::End;
                     }
                 } else {
                     // Unexpected packet

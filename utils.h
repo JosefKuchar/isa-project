@@ -23,13 +23,15 @@ void send(int sock,
 /**
  * Recieve packet
  * @param sock Socket
- * @param buffer Buffer
+ * @param builder Packet builder
  * @param source_addr Source address (server)
  * @param dest_addr Destination address (client)
  * @param len Length of source address
+ * @param resendDepth Resend depth (used for resending packets), -1 for no resending
  */
 Packet recieve(int sock,
-               char* buffer,
+               PacketBuilder builder,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
-               socklen_t* len);
+               socklen_t* len,
+               int resendDepth);

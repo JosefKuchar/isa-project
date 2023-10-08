@@ -9,7 +9,9 @@
 
 enum class State { Start, StartRecieve, Recieve, Send, End };
 
-void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesystem::path basePath) {
+void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesystem::path path) {
+    setbuf(stdout, NULL);
+
     int sock = 0, opt = 1;
 
     struct sockaddr_in server_addr;
@@ -17,6 +19,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     server_addr.sin_port = htons(0);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     socklen_t len = sizeof(server_addr);
+    struct timeval tv;
+    tv.tv_usec = 100000;
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
         perror("socket");
@@ -34,8 +38,13 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
         perror("getsockname");
         exit(EXIT_FAILURE);
     }
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
 
     char buffer[BUFSIZE] = {0};
+    char fileBuffer[DEFAULT_BLOCK_SIZE] = {0};  // TODO: Change to dynamic
     PacketBuilder packetBuilder(buffer);
     State state = State::Start;
     int currentBlock = 1;
@@ -47,21 +56,54 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
             case State::Start: {
                 if (std::holds_alternative<RRQPacket>(packet)) {
                     RRQPacket rrq = std::get<RRQPacket>(packet);
-                    if (rrq.options.size() > 0) {
-                        // TODO: Parse options
-                        packetBuilder.createOACK();
-                    } else {
-                        // TODO: Send first data packet
+                    path /= rrq.filepath;
+
+                    file.open(path, std::ios::in | std::ios::binary);
+                    if (!file.is_open()) {
+                        packetBuilder.createERROR(ErrorCode::FileNotFound, "File not found");
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::End;
+                        break;
                     }
+
+                    // if (rrq.options.size() > 0) {
+                    //     // TODO: Parse options
+                    //     packetBuilder.createOACK();
+                    // } else {
+                    //     // TODO: Send first data packet
+                    // }
+                    state = State::Send;
                 } else if (std::holds_alternative<WRQPacket>(packet)) {
                     WRQPacket wrq = std::get<WRQPacket>(packet);
-                    if (wrq.options.size() > 0) {
-                        // TODO: Parse options
-                        packetBuilder.createOACK();
-                    } else {
-                        packetBuilder.createACK(0);
+                    path /= wrq.filepath;
+                    if (std::filesystem::exists(path)) {
+                        packetBuilder.createERROR(ErrorCode::FileAlreadyExists,
+                                                  "File already exists");
                         send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::End;
+                        break;
                     }
+                    try {
+                        file.open(path, std::ios::out | std::ios::binary);
+                        if (!file.is_open()) {
+                            throw std::runtime_error("Failed to open file");
+                        }
+                    } catch (std::exception& e) {
+                        packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::End;
+                        break;
+                    }
+
+                    packetBuilder.createACK(0);
+                    send(sock, packetBuilder, &server_addr, &client_addr);
+                    // if (wrq.options.size() > 0) {
+                    //     // TODO: Parse options
+                    //     packetBuilder.createOACK();
+                    // } else {
+                    //     packetBuilder.createACK(0);
+                    //     send(sock, packetBuilder, &server_addr, &client_addr);
+                    // }
 
                     state = State::Recieve;
                 } else {
@@ -74,7 +116,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
             case State::Recieve: {
                 // file.open("test.txt", std::ios::out | std::ios::binary | std::ios::);
 
-                Packet packet = recieve(sock, buffer, &client_addr, &server_addr, &len);
+                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len, 0);
                 if (std::holds_alternative<DATAPacket>(packet)) {
                     DATAPacket data = std::get<DATAPacket>(packet);
                     file.write(data.data, data.len);
@@ -92,23 +134,27 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                 break;
             }
             case State::Send: {
+                size_t n = file.read(fileBuffer, blockSize).gcount();
+                packetBuilder.createDATA(currentBlock, fileBuffer, n);
+                send(sock, packetBuilder, &server_addr, &client_addr);
+
+                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len, 0);
+                if (std::holds_alternative<ACKPacket>(packet)) {
+                    ACKPacket ack = std::get<ACKPacket>(packet);
+                    if (ack.block == currentBlock) {
+                        currentBlock++;
+                    }
+                } else {
+                    packetBuilder.createERROR(ErrorCode::IllegalOperation, "Expected ACK packet");
+                }
+
+                if (n < blockSize) {
+                    state = State::End;
+                }
                 break;
             }
         }
     }
-
-    // std::ofstream file;
-    // file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    // WRQPacket p = std::get<WRQPacket>(packet);
-    // try {
-    //     file.open(p.filepath, std::ios::out | std::ios::binary);
-    // } catch (std::exception& e) {
-    //     packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
-    //     packet = parsePacket(buffer, packetBuilder.getSize());
-    //     printPacket(packet, server_addr, client_addr, true);
-    //     sendto(sock, buffer, packetBuilder.getSize(), 0, (const struct sockaddr*)&client_addr,
-    //            sizeof(client_addr));
-    // }
 }
 
 int main(int argc, char* argv[]) {
@@ -117,6 +163,7 @@ int main(int argc, char* argv[]) {
     int opt = 1;
     char buffer[BUFSIZE] = {0};
     socklen_t len = sizeof(args.address);
+    PacketBuilder packetBuilder(buffer);
 
     struct sockaddr_in client_addr;
 
@@ -142,7 +189,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Server listening on port " << ntohs(args.address.sin_port) << std::endl;
 
     while (true) {
-        Packet packet = recieve(sock, buffer, &client_addr, &args.address, &len);
+        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len, -1);
         std::cout << "Received packet on main thread, creating new thread..." << std::endl;
         std::thread client_thread(client_handler, client_addr, packet, args.path);
         client_thread.detach();
