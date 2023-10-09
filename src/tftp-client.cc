@@ -20,6 +20,9 @@ enum class State {
 };
 
 int main(int argc, char* argv[]) {
+    // Initalize random seed
+    srand(time(NULL));
+
     // Parse arguments
     ClientArgs args(argc, argv);
 
@@ -295,21 +298,28 @@ int main(int argc, char* argv[]) {
                     // Create and send ACK packet
                     packetBuilder.createACK(block_count);
                     send(sock, packetBuilder, &client_addr, &args.address);
-                    block_count++;
 
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
-                        // Check block number
-                        if (data.block == block_count) {
+                        // Check block number (we are expecting the next block)
+                        if (data.block == block_count + 1) {
                             // Write to file
                             std::cout << "Writing " << data.len << " bytes" << std::endl;
                             fwrite(data.data, 1, data.len, args.input_file);
+
+                            block_count++;
+                            next_block = true;
+                        } else {
+                            // Old DATA packet, resend ACK packet
+                            next_block = false;
                         }
 
                         if (data.len < blkSize) {
+                            packetBuilder.createACK(block_count);
+                            send(sock, packetBuilder, &client_addr, &args.address);
                             state = State::End;
                         }
                     } else {

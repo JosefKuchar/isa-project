@@ -23,10 +23,17 @@ Packet recieve(int sock,
                PacketBuilder builder,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
-               socklen_t* len) {
+               socklen_t* len,
+               int depth) {
     ssize_t n = recvfrom(sock, builder.getBuffer(), BUFSIZE, 0, (struct sockaddr*)source_addr, len);
     if (n < 0) {
-        throw TimeoutException();
+        if (depth >= 0 && depth < RETRY_COUNT) {
+            std::cout << "Timeout, resending last packet (below)" << std::endl;
+            send(sock, builder, dest_addr, source_addr);
+            return recieve(sock, builder, source_addr, dest_addr, len, depth + 1);
+        } else {
+            throw TimeoutException();
+        }
     }
     Packet packet = parsePacket(builder.getBuffer(), n);
     printPacket(packet, *source_addr, *dest_addr, false);

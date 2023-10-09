@@ -27,9 +27,11 @@ void send(int sock,
  * @param source_addr Source address (server)
  * @param dest_addr Destination address (client)
  * @param len Length of source address
+ * @param depth Resend depth, -1 for no resend
  */
 Packet recieve(int sock,
                PacketBuilder builder,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
-               socklen_t* len);
+               socklen_t* len,
+               int depth = 0);
