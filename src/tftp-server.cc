@@ -53,209 +53,221 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
 
     bool nextBlock = true;
     int retryCount = 0;
-    while (state != State::End) {
-        switch (state) {
-            case State::Start: {
-                if (std::holds_alternative<RRQPacket>(packet)) {
-                    RRQPacket rrq = std::get<RRQPacket>(packet);
-                    path /= rrq.filepath;
 
-                    file.open(path, std::ios::in | std::ios::binary);
-                    if (!file.is_open()) {
-                        packetBuilder.createERROR(ErrorCode::FileNotFound, "File not found");
-                        send(sock, packetBuilder, &server_addr, &client_addr);
-                        state = State::End;
-                        break;
-                    }
+    try {
+        while (state != State::End) {
+            switch (state) {
+                case State::Start: {
+                    if (std::holds_alternative<RRQPacket>(packet)) {
+                        RRQPacket rrq = std::get<RRQPacket>(packet);
+                        path /= rrq.filepath;
 
-                    std::optional<Options> options = parseOptionsToStruct(rrq.options);
-                    if (options.has_value()) {
-                        if (!options->valid) {
-                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Invalid options");
+                        file.open(path, std::ios::in | std::ios::binary);
+                        if (!file.is_open()) {
+                            packetBuilder.createERROR(ErrorCode::FileNotFound, "File not found");
                             send(sock, packetBuilder, &server_addr, &client_addr);
                             state = State::End;
                             break;
                         }
 
-                        packetBuilder.createOACK();
-                        if (options->blkSize.has_value()) {
-                            blockSize = options->blkSize.value();
-                            packetBuilder.addBlksizeOption(blockSize);
-                        }
-                        if (options->timeout.has_value()) {
-                            packetBuilder.addTimeoutOption(options->timeout.value());
-                            tv.tv_sec = options->timeout.value();
-                            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-                                perror("setsockopt");
-                                exit(EXIT_FAILURE);
-                            }
-                        }
-                        if (options->tSize.has_value()) {
-                            if (options->tSize.value() != 0) {
+                        std::optional<Options> options = parseOptionsToStruct(rrq.options);
+                        if (options.has_value()) {
+                            if (!options->valid) {
                                 packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                          "Tsize should be 0 for RRQ");
+                                                          "Invalid options");
                                 send(sock, packetBuilder, &server_addr, &client_addr);
                                 state = State::End;
                                 break;
                             }
-                            packetBuilder.addTsizeOption(std::filesystem::file_size(path));
-                        }
 
-                        send(sock, packetBuilder, &server_addr, &client_addr);
+                            packetBuilder.createOACK();
+                            if (options->blkSize.has_value()) {
+                                blockSize = options->blkSize.value();
+                                packetBuilder.addBlksizeOption(blockSize);
+                            }
+                            if (options->timeout.has_value()) {
+                                packetBuilder.addTimeoutOption(options->timeout.value());
+                                tv.tv_sec = options->timeout.value();
+                                if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
+                                    0) {
+                                    perror("setsockopt");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                            if (options->tSize.has_value()) {
+                                if (options->tSize.value() != 0) {
+                                    packetBuilder.createERROR(ErrorCode::InvalidOption,
+                                                              "Tsize should be 0 for RRQ");
+                                    send(sock, packetBuilder, &server_addr, &client_addr);
+                                    state = State::End;
+                                    break;
+                                }
+                                packetBuilder.addTsizeOption(std::filesystem::file_size(path));
+                            }
 
-                        Packet packet =
-                            recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
-                        if (std::holds_alternative<ACKPacket>(packet)) {
-                            ACKPacket ack = std::get<ACKPacket>(packet);
-                            if (ack.block == 0) {
-                                std::cout << "Confirmed options" << std::endl;
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+
+                            Packet packet =
+                                recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                            if (std::holds_alternative<ACKPacket>(packet)) {
+                                ACKPacket ack = std::get<ACKPacket>(packet);
+                                if (ack.block == 0) {
+                                    std::cout << "Confirmed options" << std::endl;
+                                } else {
+                                    packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                              "Expected block 0");
+                                    send(sock, packetBuilder, &server_addr, &client_addr);
+                                    state = State::End;
+                                    break;
+                                }
                             } else {
                                 packetBuilder.createERROR(ErrorCode::NotDefined,
-                                                          "Expected block 0");
+                                                          "Expected ACK packet");
                                 send(sock, packetBuilder, &server_addr, &client_addr);
                                 state = State::End;
                                 break;
                             }
-                        } else {
-                            packetBuilder.createERROR(ErrorCode::NotDefined, "Expected ACK packet");
+                        }
+
+                        state = State::Send;
+                    } else if (std::holds_alternative<WRQPacket>(packet)) {
+                        WRQPacket wrq = std::get<WRQPacket>(packet);
+                        path /= wrq.filepath;
+                        if (std::filesystem::exists(path)) {
+                            packetBuilder.createERROR(ErrorCode::FileAlreadyExists,
+                                                      "File already exists");
                             send(sock, packetBuilder, &server_addr, &client_addr);
                             state = State::End;
                             break;
                         }
-                    }
-
-                    state = State::Send;
-                } else if (std::holds_alternative<WRQPacket>(packet)) {
-                    WRQPacket wrq = std::get<WRQPacket>(packet);
-                    path /= wrq.filepath;
-                    if (std::filesystem::exists(path)) {
-                        packetBuilder.createERROR(ErrorCode::FileAlreadyExists,
-                                                  "File already exists");
-                        send(sock, packetBuilder, &server_addr, &client_addr);
-                        state = State::End;
-                        break;
-                    }
-                    try {
-                        file.open(path, std::ios::out | std::ios::binary);
-                        if (!file.is_open()) {
-                            throw std::runtime_error("Failed to open file");
-                        }
-                    } catch (std::exception& e) {
-                        packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
-                        send(sock, packetBuilder, &server_addr, &client_addr);
-                        state = State::End;
-                        break;
-                    }
-
-                    std::optional<Options> options = parseOptionsToStruct(wrq.options);
-                    if (options.has_value()) {
-                        if (!options->valid) {
-                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Invalid options");
-                            send(sock, packetBuilder, &server_addr, &client_addr);
-                            state = State::End;
-                            break;
-                        }
-
-                        packetBuilder.createOACK();
-                        if (options->blkSize.has_value()) {
-                            blockSize = options->blkSize.value();
-                            packetBuilder.addBlksizeOption(blockSize);
-                        }
-                        if (options->timeout.has_value()) {
-                            packetBuilder.addTimeoutOption(options->timeout.value());
-                            tv.tv_sec = options->timeout.value();
-                            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-                                perror("setsockopt");
-                                exit(EXIT_FAILURE);
+                        try {
+                            file.open(path, std::ios::out | std::ios::binary);
+                            if (!file.is_open()) {
+                                throw std::runtime_error("Failed to open file");
                             }
+                        } catch (std::exception& e) {
+                            packetBuilder.createERROR(ErrorCode::FileNotFound, e.what());
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
                         }
-                        if (options->tSize.has_value()) {
-                            // TODO: Use tsize
-                            packetBuilder.addTsizeOption(options->tSize.value());
+
+                        std::optional<Options> options = parseOptionsToStruct(wrq.options);
+                        if (options.has_value()) {
+                            if (!options->valid) {
+                                packetBuilder.createERROR(ErrorCode::InvalidOption,
+                                                          "Invalid options");
+                                send(sock, packetBuilder, &server_addr, &client_addr);
+                                state = State::End;
+                                break;
+                            }
+
+                            packetBuilder.createOACK();
+                            if (options->blkSize.has_value()) {
+                                blockSize = options->blkSize.value();
+                                packetBuilder.addBlksizeOption(blockSize);
+                            }
+                            if (options->timeout.has_value()) {
+                                packetBuilder.addTimeoutOption(options->timeout.value());
+                                tv.tv_sec = options->timeout.value();
+                                if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
+                                    0) {
+                                    perror("setsockopt");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                            if (options->tSize.has_value()) {
+                                // TODO: Use tsize
+                                packetBuilder.addTsizeOption(options->tSize.value());
+                            }
+
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                        } else {
+                            packetBuilder.createACK(0);
+                            send(sock, packetBuilder, &server_addr, &client_addr);
                         }
 
-                        send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::Recieve;
                     } else {
-                        packetBuilder.createACK(0);
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation, "Illegal operation");
                         send(sock, packetBuilder, &server_addr, &client_addr);
-                    }
-
-                    state = State::Recieve;
-                } else {
-                    packetBuilder.createERROR(ErrorCode::IllegalOperation, "Illegal operation");
-                    send(sock, packetBuilder, &server_addr, &client_addr);
-                    state = State::End;
-                }
-                break;
-            }
-            case State::Recieve: {
-                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
-                if (std::holds_alternative<DATAPacket>(packet)) {
-                    DATAPacket data = std::get<DATAPacket>(packet);
-                    if (data.block == currentBlock) {
-                        nextBlock = true;
-                    } else {
-                        nextBlock = false;
-                    }
-
-                    if (nextBlock) {
-                        file.write(data.data, data.len);
-                    }
-                    packetBuilder.createACK(currentBlock);
-                    send(sock, packetBuilder, &server_addr, &client_addr);
-
-                    currentBlock++;
-
-                    if (data.len < blockSize) {
                         state = State::End;
                     }
-                } else {
-                    packetBuilder.createERROR(ErrorCode::IllegalOperation, "Expected DATA packet");
+                    break;
                 }
-                break;
-            }
-            case State::Send: {
-                if (nextBlock) {
-                    file.read(fileBuffer, blockSize);
-                }
-                packetBuilder.createDATA(currentBlock, fileBuffer, file.gcount());
-                send(sock, packetBuilder, &server_addr, &client_addr);
-
-                try {
+                case State::Recieve: {
                     Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
-                    retryCount = 0;
-                    if (std::holds_alternative<ACKPacket>(packet)) {
-                        ACKPacket ack = std::get<ACKPacket>(packet);
-                        if (ack.block == currentBlock) {
-                            std::cout << "Confirmed block " << currentBlock << std::endl;
-                            currentBlock++;
+                    if (std::holds_alternative<DATAPacket>(packet)) {
+                        DATAPacket data = std::get<DATAPacket>(packet);
+                        if (data.block == currentBlock) {
                             nextBlock = true;
                         } else {
                             nextBlock = false;
-                            break;
+                        }
+
+                        if (nextBlock) {
+                            file.write(data.data, data.len);
+                        }
+                        packetBuilder.createACK(currentBlock);
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+
+                        currentBlock++;
+
+                        if (data.len < blockSize) {
+                            state = State::End;
                         }
                     } else {
                         packetBuilder.createERROR(ErrorCode::IllegalOperation,
-                                                  "Expected ACK packet");
+                                                  "Expected DATA packet");
                     }
-                } catch (TimeoutException& e) {
-                    std::cout << "Timeout, resending..." << currentBlock << std::endl;
-                    if (retryCount >= RETRY_COUNT) {
-                        std::cout << "Retry count exceeded, aborting" << std::endl;
-                        state = State::End;
-                    }
-
-                    retryCount++;
-                    nextBlock = false;
                     break;
                 }
+                case State::Send: {
+                    if (nextBlock) {
+                        file.read(fileBuffer, blockSize);
+                    }
+                    packetBuilder.createDATA(currentBlock, fileBuffer, file.gcount());
+                    send(sock, packetBuilder, &server_addr, &client_addr);
 
-                if (file.gcount() < blockSize) {
-                    state = State::End;
+                    try {
+                        Packet packet =
+                            recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                        retryCount = 0;
+                        if (std::holds_alternative<ACKPacket>(packet)) {
+                            ACKPacket ack = std::get<ACKPacket>(packet);
+                            if (ack.block == currentBlock) {
+                                std::cout << "Confirmed block " << currentBlock << std::endl;
+                                currentBlock++;
+                                nextBlock = true;
+                            } else {
+                                nextBlock = false;
+                                break;
+                            }
+                        } else {
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                      "Expected ACK packet");
+                        }
+                    } catch (TimeoutException& e) {
+                        std::cout << "Timeout, resending..." << currentBlock << std::endl;
+                        if (retryCount >= RETRY_COUNT) {
+                            std::cout << "Retry count exceeded, aborting" << std::endl;
+                            state = State::End;
+                        }
+
+                        retryCount++;
+                        nextBlock = false;
+                        break;
+                    }
+
+                    if (file.gcount() < blockSize) {
+                        state = State::End;
+                    }
+                    break;
                 }
-                break;
             }
         }
+    } catch (TimeoutException e) {
+        std::cout << "Timeout, aborting" << std::endl;
     }
 }
 
