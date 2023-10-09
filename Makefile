@@ -1,11 +1,11 @@
 CPPFLAGS = -std=c++20 -O2
 
 # Get all .c files
-SRCS = $(wildcard *.cc)
+SRCS = $(wildcard src/*.cc)
 # Get corresponding .o files
 OBJS := $(SRCS:%.cc=%.o)
 # Exclude tfpt-client.cc and tftp-server.cc
-OBJS := $(filter-out tftp-client.o tftp-server.o, $(OBJS))
+OBJS := $(filter-out src/tftp-client.o src/tftp-server.o, $(OBJS))
 # Get corresponding .d files
 DEPS := $(SRCS:%.cc=%.d)
 
@@ -14,10 +14,10 @@ DEPS := $(SRCS:%.cc=%.d)
 
 all: tftp-client tftp-server
 
-tftp-client: $(OBJS) tftp-client.o
+tftp-client: $(OBJS) src/tftp-client.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-tftp-server: $(OBJS) tftp-server.o
+tftp-server: $(OBJS) src/tftp-server.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lpthread
 
 # Dependecies
@@ -27,10 +27,15 @@ $(DEPS):
 include $(wildcard $(DEPS))
 
 clean:
-	rm -f *.o *.d tftp-client tftp-server xkucha28.tar
+	rm -f src/*.o src/*.d tftp-client tftp-server xkucha28.tar
 
-run_client: tftp-client
-	./tftp-client -p 1234 -h 127.0.0.1 -t test.txt -f tftp-client.cc
+run_client_send: tftp-client
+	rm -f files/dest.txt
+	./tftp-client -p 1234 -h 127.0.0.1 -t dest.txt < files/lorem.txt
+
+run_client_recv: tftp-client
+	rm -f files/dest.txt
+	./tftp-client -p 1234 -h 127.0.0.1 -t lorem.txt -f files/dest.txt
 
 run_server: tftp-server
 	./tftp-server -p 1234 files

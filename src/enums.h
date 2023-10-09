@@ -1,9 +1,6 @@
 #pragma once
 
-const size_t BUFSIZE = 65535;
-const int DEFAULT_BLOCK_SIZE = 512;
-const int DEFAULT_PORT = 69;
-const int RETRY_COUNT = 3;
+#include "settings.h"
 
 enum class Opcode {
     RRQ = 1,    // Read request (RRQ)
@@ -25,7 +22,7 @@ enum class ErrorCode {
     UnknownTID = 5,         // Unknown transfer ID
     FileAlreadyExists = 6,  // File already exists
     NoSuchUser = 7,         // No such user
-    InvalidOption = 8,      // Invalid option
+    InvalidOption = 8,      // Invalid option (RTC 2347)
 };
 
 /**

@@ -4,3 +4,4 @@ tftp-client
 tftp-server
 *.zip
 *.tar
+dest.txt

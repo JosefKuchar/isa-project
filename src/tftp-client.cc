@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
     socklen_t client_len = sizeof(client_addr);
 
     int sock;
-    size_t BLKSIZE = 1024;
+    size_t blkSize = 1024;
     char buffer[BUFSIZE] = {0};
     std::unique_ptr<char[]> file_buf;
     State state = args.send ? State::StartSend : State::StartRecieve;
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
             case State::StartSend: {
                 // Create and send WRQ packet
                 packetBuilder.createWRQ(args.dest_filepath, "octet");
-                packetBuilder.addBlksizeOption(BLKSIZE);
+                packetBuilder.addBlksizeOption(blkSize);
                 packetBuilder.addTimeoutOption(1);
                 send(sock, packetBuilder, &client_addr, &args.address);
 
@@ -84,11 +84,51 @@ int main(int argc, char* argv[]) {
                 packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
-                    // Parse options
+                    OACKPacket oack = std::get<OACKPacket>(packet);
+                    std::optional<Options> options = parseOptionsToStruct(oack.options);
+                    if (options.has_value()) {
+                        if (!options->valid) {
+                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Invalid option");
+                            send(sock, packetBuilder, &client_addr, &args.address);
+                            exit(EXIT_FAILURE);
+                        }
+
+                        // Parse options
+                        if (options->blkSize.has_value()) {
+                            if (options->blkSize.value() < 8 ||
+                                options->blkSize.value() > blkSize) {
+                                packetBuilder.createERROR(ErrorCode::InvalidOption,
+                                                          "Invalid block size");
+                                send(sock, packetBuilder, &client_addr, &args.address);
+                                exit(EXIT_FAILURE);
+                            }
+                            blkSize = options->blkSize.value();
+                        }
+                        if (options->timeout.has_value()) {
+                            if (options->timeout.value() != DEFAULT_TIMEOUT) {
+                                packetBuilder.createERROR(ErrorCode::InvalidOption,
+                                                          "Timeout does not match");
+                                send(sock, packetBuilder, &client_addr, &args.address);
+                                exit(EXIT_FAILURE);
+                            }
+                            tv.tv_sec = options->timeout.value();
+                            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+                                perror("setsockopt");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+
+                        state = State::InitTransfer;
+                    } else {
+                        packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
+                        send(sock, packetBuilder, &client_addr, &args.address);
+                        exit(EXIT_FAILURE);
+                    }
+
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
-                    BLKSIZE = DEFAULT_BLOCK_SIZE;
+                    blkSize = DEFAULT_BLOCK_SIZE;
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<ERRORPacket>(packet)) {
                     // Server responded with error, try again without options
@@ -111,7 +151,7 @@ int main(int argc, char* argv[]) {
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
-                    BLKSIZE = DEFAULT_BLOCK_SIZE;
+                    blkSize = DEFAULT_BLOCK_SIZE;
                     state = State::InitTransfer;
                 } else {
                     // Unexpected packet
@@ -123,7 +163,7 @@ int main(int argc, char* argv[]) {
             case State::StartRecieve: {
                 // Create and send RRQ packet
                 packetBuilder.createRRQ(args.dest_filepath, "octet");
-                // packetBuilder.addBlksizeOption(BLKSIZE);
+                // packetBuilder.addblkSizeOption(blkSize);
                 // packetBuilder.addTimeoutOption(1);
                 send(sock, packetBuilder, &client_addr, &args.address);
 
@@ -135,7 +175,7 @@ int main(int argc, char* argv[]) {
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<DATAPacket>(packet)) {
                     // Fall back to default block size
-                    BLKSIZE = 512;
+                    blkSize = 512;
                     state = State::InitTransfer;
                 } else if (std::holds_alternative<ERRORPacket>(packet)) {
                     // Server responded with error, try again without options
@@ -149,7 +189,7 @@ int main(int argc, char* argv[]) {
             }
             case State::InitTransfer: {
                 // Allocate file buffer
-                file_buf = std::make_unique<char[]>(BLKSIZE);
+                file_buf = std::make_unique<char[]>(blkSize);
                 if (args.send) {
                     state = State::Send;
                 } else {
@@ -160,7 +200,7 @@ int main(int argc, char* argv[]) {
             case State::Send: {
                 if (next_block) {
                     // Read file
-                    blen = fread(file_buf.get(), 1, BLKSIZE, args.input_file);
+                    blen = fread(file_buf.get(), 1, blkSize, args.input_file);
                     std::cout << "Read " << blen << " bytes" << std::endl;
                     if (blen == 0) {
                         state = State::End;
@@ -210,7 +250,7 @@ int main(int argc, char* argv[]) {
                         fwrite(data.data, 1, data.len, args.input_file);
                     }
 
-                    if (data.len < BLKSIZE) {
+                    if (data.len < blkSize) {
                         state = State::End;
                     }
                 } else {
