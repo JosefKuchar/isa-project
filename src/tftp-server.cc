@@ -229,34 +229,20 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     packetBuilder.createDATA(currentBlock, fileBuffer, file.gcount());
                     send(sock, packetBuilder, &server_addr, &client_addr);
 
-                    try {
-                        Packet packet =
-                            recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
-                        retryCount = 0;
-                        if (std::holds_alternative<ACKPacket>(packet)) {
-                            ACKPacket ack = std::get<ACKPacket>(packet);
-                            if (ack.block == currentBlock) {
-                                std::cout << "Confirmed block " << currentBlock << std::endl;
-                                currentBlock++;
-                                nextBlock = true;
-                            } else {
-                                nextBlock = false;
-                                break;
-                            }
+                    Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                    if (std::holds_alternative<ACKPacket>(packet)) {
+                        ACKPacket ack = std::get<ACKPacket>(packet);
+                        if (ack.block == currentBlock) {
+                            std::cout << "Confirmed block " << currentBlock << std::endl;
+                            currentBlock++;
+                            nextBlock = true;
                         } else {
-                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
-                                                      "Expected ACK packet");
+                            nextBlock = false;
+                            break;
                         }
-                    } catch (TimeoutException& e) {
-                        std::cout << "Timeout, resending..." << currentBlock << std::endl;
-                        if (retryCount >= RETRY_COUNT) {
-                            std::cout << "Retry count exceeded, aborting" << std::endl;
-                            state = State::End;
-                        }
-
-                        retryCount++;
-                        nextBlock = false;
-                        break;
+                    } else {
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                  "Expected ACK packet");
                     }
 
                     if (file.gcount() < blockSize) {
