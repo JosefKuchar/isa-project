@@ -1,10 +1,18 @@
 #pragma once
 
 #include <arpa/inet.h>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 #include "enums.h"
+
+struct Options {
+    std::optional<int> blkSize;
+    std::optional<int> timeout;
+    std::optional<int> tSize;
+    bool valid;
+};
 
 struct RRQPacket {
     std::string filepath;
@@ -57,3 +65,5 @@ Packet parsePacket(char* buffer, size_t len);
  * @param dest Destination address
  */
 void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug);
+
+std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, std::string>> opts);

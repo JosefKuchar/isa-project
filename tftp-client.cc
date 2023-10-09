@@ -69,6 +69,8 @@ int main(int argc, char* argv[]) {
     }
 
     int block_count = 1;
+    bool next_block = true;
+    size_t blen;
     while (state != State::End) {
         switch (state) {
             case State::StartSend: {
@@ -79,7 +81,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len, -1);
+                packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
                     // Parse options
@@ -105,7 +107,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, -1);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     // Fall back to default block size
@@ -126,7 +128,7 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, -1);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<OACKPacket>(packet)) {
                     // Parse options
@@ -156,12 +158,14 @@ int main(int argc, char* argv[]) {
                 break;
             }
             case State::Send: {
-                // Read file
-                size_t blen = fread(file_buf.get(), 1, BLKSIZE, args.input_file);
-                std::cout << "Read " << blen << " bytes" << std::endl;
-                if (blen == 0) {
-                    state = State::End;
-                    break;
+                if (next_block) {
+                    // Read file
+                    blen = fread(file_buf.get(), 1, BLKSIZE, args.input_file);
+                    std::cout << "Read " << blen << " bytes" << std::endl;
+                    if (blen == 0) {
+                        state = State::End;
+                        break;
+                    }
                 }
 
                 // Create and send DATA packet
@@ -169,13 +173,17 @@ int main(int argc, char* argv[]) {
                 send(sock, packetBuilder, &client_addr, &args.address);
 
                 // Recieve packet
-                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, 0);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<ACKPacket>(packet)) {
                     ACKPacket ack = std::get<ACKPacket>(packet);
                     // Check block number
                     if (ack.block == block_count) {
                         block_count++;
+                        next_block = true;
+                    } else {
+                        // Old ACK packet, resend DATA packet
+                        next_block = false;
                     }
                 } else {
                     // Unexpected packet
@@ -191,7 +199,7 @@ int main(int argc, char* argv[]) {
                 block_count++;
 
                 // Recieve packet
-                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len, 0);
+                packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                 if (std::holds_alternative<DATAPacket>(packet)) {
                     DATAPacket data = std::get<DATAPacket>(packet);

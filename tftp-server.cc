@@ -20,7 +20,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     server_addr.sin_addr.s_addr = INADDR_ANY;
     socklen_t len = sizeof(server_addr);
     struct timeval tv;
-    tv.tv_usec = 100000;
+    tv.tv_usec = 999999;
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
         perror("socket");
@@ -51,6 +51,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     int blockSize = DEFAULT_BLOCK_SIZE;
     std::fstream file;
 
+    bool nextBlock = true;
+    int retryCount = 0;
     while (state != State::End) {
         switch (state) {
             case State::Start: {
@@ -66,12 +68,62 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         break;
                     }
 
-                    // if (rrq.options.size() > 0) {
-                    //     // TODO: Parse options
-                    //     packetBuilder.createOACK();
-                    // } else {
-                    //     // TODO: Send first data packet
-                    // }
+                    std::optional<Options> options = parseOptionsToStruct(rrq.options);
+                    if (options.has_value()) {
+                        if (!options->valid) {
+                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Invalid options");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
+
+                        packetBuilder.createOACK();
+                        if (options->blkSize.has_value()) {
+                            blockSize = options->blkSize.value();
+                            packetBuilder.addBlksizeOption(blockSize);
+                        }
+                        if (options->timeout.has_value()) {
+                            packetBuilder.addTimeoutOption(options->timeout.value());
+                            tv.tv_sec = options->timeout.value();
+                            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+                                perror("setsockopt");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                        if (options->tSize.has_value()) {
+                            if (options->tSize.value() != 0) {
+                                packetBuilder.createERROR(ErrorCode::InvalidOption,
+                                                          "Tsize should be 0 for RRQ");
+                                send(sock, packetBuilder, &server_addr, &client_addr);
+                                state = State::End;
+                                break;
+                            }
+                            packetBuilder.addTsizeOption(std::filesystem::file_size(path));
+                        }
+
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+
+                        Packet packet =
+                            recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                        if (std::holds_alternative<ACKPacket>(packet)) {
+                            ACKPacket ack = std::get<ACKPacket>(packet);
+                            if (ack.block == 0) {
+                                std::cout << "Confirmed options" << std::endl;
+                            } else {
+                                packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                          "Expected block 0");
+                                send(sock, packetBuilder, &server_addr, &client_addr);
+                                state = State::End;
+                                break;
+                            }
+                        } else {
+                            packetBuilder.createERROR(ErrorCode::NotDefined, "Expected ACK packet");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
+                    }
+
                     state = State::Send;
                 } else if (std::holds_alternative<WRQPacket>(packet)) {
                     WRQPacket wrq = std::get<WRQPacket>(packet);
@@ -95,15 +147,38 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         break;
                     }
 
-                    packetBuilder.createACK(0);
-                    send(sock, packetBuilder, &server_addr, &client_addr);
-                    // if (wrq.options.size() > 0) {
-                    //     // TODO: Parse options
-                    //     packetBuilder.createOACK();
-                    // } else {
-                    //     packetBuilder.createACK(0);
-                    //     send(sock, packetBuilder, &server_addr, &client_addr);
-                    // }
+                    std::optional<Options> options = parseOptionsToStruct(wrq.options);
+                    if (options.has_value()) {
+                        if (!options->valid) {
+                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Invalid options");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
+
+                        packetBuilder.createOACK();
+                        if (options->blkSize.has_value()) {
+                            blockSize = options->blkSize.value();
+                            packetBuilder.addBlksizeOption(blockSize);
+                        }
+                        if (options->timeout.has_value()) {
+                            packetBuilder.addTimeoutOption(options->timeout.value());
+                            tv.tv_sec = options->timeout.value();
+                            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+                                perror("setsockopt");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                        if (options->tSize.has_value()) {
+                            // TODO: Use tsize
+                            packetBuilder.addTsizeOption(options->tSize.value());
+                        }
+
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                    } else {
+                        packetBuilder.createACK(0);
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                    }
 
                     state = State::Recieve;
                 } else {
@@ -114,12 +189,18 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                 break;
             }
             case State::Recieve: {
-                // file.open("test.txt", std::ios::out | std::ios::binary | std::ios::);
-
-                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len, 0);
+                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
                 if (std::holds_alternative<DATAPacket>(packet)) {
                     DATAPacket data = std::get<DATAPacket>(packet);
-                    file.write(data.data, data.len);
+                    if (data.block == currentBlock) {
+                        nextBlock = true;
+                    } else {
+                        nextBlock = false;
+                    }
+
+                    if (nextBlock) {
+                        file.write(data.data, data.len);
+                    }
                     packetBuilder.createACK(currentBlock);
                     send(sock, packetBuilder, &server_addr, &client_addr);
 
@@ -134,21 +215,42 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                 break;
             }
             case State::Send: {
-                size_t n = file.read(fileBuffer, blockSize).gcount();
-                packetBuilder.createDATA(currentBlock, fileBuffer, n);
+                if (nextBlock) {
+                    file.read(fileBuffer, blockSize);
+                }
+                packetBuilder.createDATA(currentBlock, fileBuffer, file.gcount());
                 send(sock, packetBuilder, &server_addr, &client_addr);
 
-                Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len, 0);
-                if (std::holds_alternative<ACKPacket>(packet)) {
-                    ACKPacket ack = std::get<ACKPacket>(packet);
-                    if (ack.block == currentBlock) {
-                        currentBlock++;
+                try {
+                    Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                    retryCount = 0;
+                    if (std::holds_alternative<ACKPacket>(packet)) {
+                        ACKPacket ack = std::get<ACKPacket>(packet);
+                        if (ack.block == currentBlock) {
+                            std::cout << "Confirmed block " << currentBlock << std::endl;
+                            currentBlock++;
+                            nextBlock = true;
+                        } else {
+                            nextBlock = false;
+                            break;
+                        }
+                    } else {
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                  "Expected ACK packet");
                     }
-                } else {
-                    packetBuilder.createERROR(ErrorCode::IllegalOperation, "Expected ACK packet");
+                } catch (TimeoutException& e) {
+                    std::cout << "Timeout, resending..." << currentBlock << std::endl;
+                    if (retryCount >= RETRY_COUNT) {
+                        std::cout << "Retry count exceeded, aborting" << std::endl;
+                        state = State::End;
+                    }
+
+                    retryCount++;
+                    nextBlock = false;
+                    break;
                 }
 
-                if (n < blockSize) {
+                if (file.gcount() < blockSize) {
                     state = State::End;
                 }
                 break;
@@ -189,7 +291,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Server listening on port " << ntohs(args.address.sin_port) << std::endl;
 
     while (true) {
-        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len, -1);
+        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len);
         std::cout << "Received packet on main thread, creating new thread..." << std::endl;
         std::thread client_thread(client_handler, client_addr, packet, args.path);
         client_thread.detach();

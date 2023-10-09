@@ -3,7 +3,7 @@
 const size_t BUFSIZE = 65535;
 const int DEFAULT_BLOCK_SIZE = 512;
 const int DEFAULT_PORT = 69;
-const int MAX_RESEND_DEPTH = 3;
+const int RETRY_COUNT = 3;
 
 enum class Opcode {
     RRQ = 1,    // Read request (RRQ)
