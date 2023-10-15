@@ -55,6 +55,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     int retryCount = 0;
     int bytesRead = 0;
     bool netascii = false;
+    bool lastWasR = false;
 
     try {
         while (state != State::End) {
@@ -232,7 +233,12 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         if (nextBlock) {
                             size_t len = data.len;
                             if (netascii) {
-                                len = netasciiToBinary(data.data, data.len);
+                                auto ret = netasciiToBinary(data.data, data.len, lastWasR);
+                                lastWasR = std::get<0>(ret);
+                                if (std::get<1>(ret)) {
+                                    file.seekp(-1, std::ios::cur);
+                                }
+                                len = std::get<2>(ret);
                             }
                             file.write(data.data, len);
                         }

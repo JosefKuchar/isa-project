@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tuple>
 #include "packet-builder.h"
 #include "packet.h"
 
@@ -40,9 +41,9 @@ Packet recieve(int sock,
  * Convert netascii to binary inplace
  * @param buffer Buffer
  * @param size Size of buffer
- * @return New size
+ * @return Tuple of (If last character was \r, Whether to remove last byte from file, newSize)
  */
-size_t netasciiToBinary(char* buffer, size_t size);
+std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool lastWasR);
 
 /**
  * Convert binary to netascii inplace (clips if too long)

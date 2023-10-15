@@ -41,9 +41,11 @@ Packet recieve(int sock,
     return packet;
 }
 
-size_t netasciiToBinary(char* buffer, size_t size) {
+std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool lastWasR) {
+    bool lastR = buffer[size - 1] == '\r';
+    bool removeLast = lastWasR && buffer[0] == '\n';
     size_t i = 0;
-    while (i < size) {
+    while (i < size - 1) {
         if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
             buffer[i] = '\n';
             std::memmove(buffer + i + 1, buffer + i + 2, size - i - 2);
@@ -52,7 +54,7 @@ size_t netasciiToBinary(char* buffer, size_t size) {
             i++;
         }
     }
-    return size;
+    return std::make_tuple(lastR, removeLast, size);
 }
 
 size_t binaryToNetascii(char* buffer, size_t size, size_t maxSize) {
