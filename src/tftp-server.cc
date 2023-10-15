@@ -53,6 +53,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
 
     bool nextBlock = true;
     int retryCount = 0;
+    int bytesRead = 0;
+    bool netascii = false;
 
     try {
         while (state != State::End) {
@@ -65,6 +67,17 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         file.open(path, std::ios::in | std::ios::binary);
                         if (!file.is_open()) {
                             packetBuilder.createERROR(ErrorCode::FileNotFound, "File not found");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
+
+                        if (rrq.mode == "netascii") {
+                            netascii = true;
+                        } else if (rrq.mode == "octet") {
+                            netascii = false;
+                        } else {
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation, "Invalid mode");
                             send(sock, packetBuilder, &server_addr, &client_addr);
                             state = State::End;
                             break;
@@ -152,6 +165,17 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             break;
                         }
 
+                        if (wrq.mode == "netascii") {
+                            netascii = true;
+                        } else if (wrq.mode == "octet") {
+                            netascii = false;
+                        } else {
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation, "Invalid mode");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
+
                         std::optional<Options> options = parseOptionsToStruct(wrq.options);
                         if (options.has_value()) {
                             if (!options->valid) {
@@ -206,7 +230,11 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         }
 
                         if (nextBlock) {
-                            file.write(data.data, data.len);
+                            size_t len = data.len;
+                            if (netascii) {
+                                len = netasciiToBinary(data.data, data.len);
+                            }
+                            file.write(data.data, len);
                         }
                         packetBuilder.createACK(currentBlock);
                         send(sock, packetBuilder, &server_addr, &client_addr);
@@ -225,8 +253,17 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                 case State::Send: {
                     if (nextBlock) {
                         file.read(fileBuffer, blockSize);
+                        if (netascii) {
+                            size_t size = binaryToNetascii(fileBuffer, file.gcount(), blockSize);
+                            if (size < 0) {
+                                file.seekg(size, std::ios::cur);
+                                bytesRead += blockSize;
+                            } else {
+                                bytesRead += size;
+                            }
+                        }
                     }
-                    packetBuilder.createDATA(currentBlock, fileBuffer, file.gcount());
+                    packetBuilder.createDATA(currentBlock, fileBuffer, bytesRead);
                     send(sock, packetBuilder, &server_addr, &client_addr);
 
                     Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
@@ -245,7 +282,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                                   "Expected ACK packet");
                     }
 
-                    if (file.gcount() < blockSize) {
+                    if (bytesRead < blockSize) {
                         state = State::End;
                     }
                     break;

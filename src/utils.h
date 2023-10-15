@@ -35,3 +35,20 @@ Packet recieve(int sock,
                struct sockaddr_in* dest_addr,
                socklen_t* len,
                int depth = 0);
+
+/**
+ * Convert netascii to binary inplace
+ * @param buffer Buffer
+ * @param size Size of buffer
+ * @return New size
+ */
+size_t netasciiToBinary(char* buffer, size_t size);
+
+/**
+ * Convert binary to netascii inplace (clips if too long)
+ * @param buffer Buffer
+ * @param size Size of data
+ * @param maxSize Maximum size of buffer
+ * @return How many bytes were clipped
+ */
+size_t binaryToNetascii(char* buffer, size_t size, size_t maxSize);

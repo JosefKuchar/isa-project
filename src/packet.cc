@@ -112,6 +112,7 @@ Packet parsePacket(char* buffer, size_t len) {
                 RRQPacket rrq;
                 rrq.filepath = getStringSafe(buffer + 2, end);
                 rrq.mode = getStringSafe(buffer + 2 + rrq.filepath.length() + 1, end);
+                std::transform(rrq.mode.begin(), rrq.mode.end(), rrq.mode.begin(), ::tolower);
                 size_t offset = 2 + rrq.filepath.length() + 1 + rrq.mode.length() + 1;
                 rrq.options = parseOptions(buffer, offset, end);
                 return rrq;
@@ -120,6 +121,7 @@ Packet parsePacket(char* buffer, size_t len) {
                 WRQPacket wrq;
                 wrq.filepath = getStringSafe(buffer + 2, end);
                 wrq.mode = getStringSafe(buffer + 2 + wrq.filepath.length() + 1, end);
+                std::transform(wrq.mode.begin(), wrq.mode.end(), wrq.mode.begin(), ::tolower);
                 size_t offset = 2 + wrq.filepath.length() + 1 + wrq.mode.length() + 1;
                 wrq.options = parseOptions(buffer, offset, end);
                 return wrq;

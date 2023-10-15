@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
             switch (state) {
                 case State::StartSend: {
                     // Create and send WRQ packet
-                    packetBuilder.createWRQ(args.dest_filepath, "octet");
+                    packetBuilder.createWRQ(args.dest_filepath, "netascii");
                     packetBuilder.addBlksizeOption(blkSize);
                     packetBuilder.addTimeoutOption(DEFAULT_TIMEOUT);
                     send(sock, packetBuilder, &client_addr, &args.address);
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
                 }
                 case State::StartSendNoOptions: {
                     // Create and send WRQ packet
-                    packetBuilder.createWRQ(args.dest_filepath, "octet");
+                    packetBuilder.createWRQ(args.dest_filepath, "netascii");
                     args.address.sin_port = args.port;
                     send(sock, packetBuilder, &client_addr, &args.address);
 
