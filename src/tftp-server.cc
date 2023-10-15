@@ -44,7 +44,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     }
 
     char buffer[BUFSIZE] = {0};
-    char fileBuffer[DEFAULT_BLOCK_SIZE] = {0};  // TODO: Change to dynamic
+    char fileBuffer[10000] = {0};  // TODO: Change to dynamic
     PacketBuilder packetBuilder(buffer);
     State state = State::Start;
     int currentBlock = 1;
@@ -263,10 +263,12 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             size_t size = binaryToNetascii(fileBuffer, file.gcount(), blockSize);
                             if (size < 0) {
                                 file.seekg(size, std::ios::cur);
-                                bytesRead += blockSize;
+                                bytesRead = blockSize;
                             } else {
-                                bytesRead += size;
+                                bytesRead = size;
                             }
+                        } else {
+                            bytesRead = file.gcount();
                         }
                     }
                     packetBuilder.createDATA(currentBlock, fileBuffer, bytesRead);
