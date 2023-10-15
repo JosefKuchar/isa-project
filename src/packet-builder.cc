@@ -4,8 +4,6 @@
 #include <string>
 #include "enums.h"
 
-// TODO Check lengths - buffer overflow
-
 /**
  * Add uint16_t to packet
  * @param data 16b data
@@ -90,19 +88,11 @@ void PacketBuilder::createERROR(ErrorCode code, std::string message) {
 }
 
 void PacketBuilder::addBlksizeOption(size_t size) {
-    if (size < 8 || size > 65464) {
-        // TODO: Throw error
-    }
-
     this->addString("blksize");
     this->addString(std::to_string(size));
 }
 
 void PacketBuilder::addTimeoutOption(size_t time) {
-    if (time < 1 || time > 255) {
-        // TODO: Throw error
-    }
-
     this->addString("timeout");
     this->addString(std::to_string(time));
 }

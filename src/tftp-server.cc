@@ -202,7 +202,6 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                 }
                             }
                             if (options->tSize.has_value()) {
-                                // TODO: Use tsize
                                 packetBuilder.addTsizeOption(options->tSize.value());
                             }
 
