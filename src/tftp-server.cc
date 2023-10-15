@@ -244,7 +244,9 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         packetBuilder.createACK(currentBlock);
                         send(sock, packetBuilder, &server_addr, &client_addr);
 
-                        currentBlock++;
+                        if (nextBlock) {
+                            currentBlock++;
+                        }
 
                         if (data.len < blockSize) {
                             state = State::End;

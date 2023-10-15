@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
     socklen_t client_len = sizeof(client_addr);
 
     int sock;
-    size_t blkSize = 1024;
+    int blkSize = 1024;
     char buffer[BUFSIZE] = {0};
     std::unique_ptr<char[]> file_buf;
     State state = args.send ? State::StartSend : State::StartRecieve;
@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
                     send(sock, packetBuilder, &client_addr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, buffer, &args.address, &client_addr, &args.len);
+                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
 
                     if (std::holds_alternative<OACKPacket>(packet)) {
                         OACKPacket oack = std::get<OACKPacket>(packet);

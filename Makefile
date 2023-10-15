@@ -1,4 +1,4 @@
-CPPFLAGS = -std=c++20 -O2
+CPPFLAGS = -std=c++20 -O2 -Wall -Wextra
 
 # Get all .c files
 SRCS = $(wildcard src/*.cc)

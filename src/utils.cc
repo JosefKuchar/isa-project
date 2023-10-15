@@ -7,7 +7,7 @@ void send(int sock,
           struct sockaddr_in* source_addr,
           struct sockaddr_in* dest_addr) {
 #ifdef PACKET_LOSS
-    if (rand() % 2 == 0) {
+    if (rand() % 3 == 0) {
         std::cout << "Packet lost: ";
     } else {
 #endif
