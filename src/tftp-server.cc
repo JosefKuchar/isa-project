@@ -44,7 +44,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     }
 
     char buffer[BUFSIZE] = {0};
-    char fileBuffer[10000] = {0};  // TODO: Change to dynamic
+    char fileBuffer[BUFSIZE] = {0};
     PacketBuilder packetBuilder(buffer);
     State state = State::Start;
     int currentBlock = 1;

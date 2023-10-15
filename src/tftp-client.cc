@@ -254,6 +254,7 @@ int main(int argc, char* argv[]) {
                         state = State::Send;
                     } else {
                         state = State::Recieve;
+                        block_count = 0;
                     }
                     break;
                 }
@@ -293,13 +294,6 @@ int main(int argc, char* argv[]) {
                     break;
                 }
                 case State::Recieve: {
-                    // Create and send ACK packet
-                    packetBuilder.createACK(block_count);
-                    send(sock, packetBuilder, &client_addr, &args.address);
-
-                    // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
-
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
                         // Check block number (we are expecting the next block)
@@ -315,16 +309,22 @@ int main(int argc, char* argv[]) {
                             next_block = false;
                         }
 
+                        // Create and send ACK packet
+                        packetBuilder.createACK(block_count);
+                        send(sock, packetBuilder, &client_addr, &args.address);
+
                         if (data.len < blkSize) {
-                            packetBuilder.createACK(block_count);
-                            send(sock, packetBuilder, &client_addr, &args.address);
                             state = State::End;
+                            break;
                         }
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
                         exit(EXIT_FAILURE);
                     }
+
+                    // Recieve packet
+                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
                     break;
                 }
             }
