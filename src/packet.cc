@@ -7,6 +7,23 @@
 #include "enums.h"
 
 /**
+ * Get safe string from char array (throws exception if not null-terminated)
+ * @param str Char array
+ * @param maxLength Maximum length of string
+ */
+std::string getStringSafe(char* str, char* end) {
+    // Check if string is null-terminated
+    for (char* i = str; i < end; i++) {
+        if (*i == '\0') {
+            return std::string(str);
+        }
+    }
+
+    // String is not null-terminated, throw exception
+    throw InvalidStringException();
+}
+
+/**
  * Parse options from buffer
  * @param buffer Buffer
  * @param offset Offset where options start
@@ -68,13 +85,13 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
 
 std::vector<std::pair<std::string, std::string>> parseOptions(char* buffer,
                                                               size_t offset,
-                                                              size_t len) {
+                                                              char* end) {
     std::vector<std::pair<std::string, std::string>> options;
     char* options_p = buffer + offset;
-    while (options_p < buffer + len) {
-        std::string option = std::string(options_p);
+    while (options_p < end) {
+        std::string option = getStringSafe(options_p, end);
         options_p += option.length() + 1;
-        std::string value = std::string(options_p);
+        std::string value = getStringSafe(options_p, end);
         options_p += value.length() + 1;
         options.push_back(std::make_pair(option, value));
     }
@@ -82,50 +99,62 @@ std::vector<std::pair<std::string, std::string>> parseOptions(char* buffer,
 }
 
 Packet parsePacket(char* buffer, size_t len) {
-    Opcode opcode = (Opcode)ntohs(*(short*)buffer);
-    switch (opcode) {
-        case Opcode::RRQ: {
-            RRQPacket rrq;
-            rrq.filepath = std::string(buffer + 2);
-            rrq.mode = std::string(buffer + 2 + rrq.filepath.length() + 1);
-            size_t offset = 2 + rrq.filepath.length() + 1 + rrq.mode.length() + 1;
-            rrq.options = parseOptions(buffer, offset, len);
-            return rrq;
-        }
-        case Opcode::WRQ: {
-            WRQPacket wrq;
-            wrq.filepath = std::string(buffer + 2);
-            wrq.mode = std::string(buffer + 2 + wrq.filepath.length() + 1);
-            size_t offset = 2 + wrq.filepath.length() + 1 + wrq.mode.length() + 1;
-            wrq.options = parseOptions(buffer, offset, len);
-            return wrq;
-        }
-        case Opcode::DATA: {
-            DATAPacket data;
-            data.block = ntohs(*(short*)(buffer + 2));
-            data.data = buffer + 4;
-            data.len = len - 4;
-            return data;
-        }
-        case Opcode::ACK: {
-            ACKPacket ack;
-            ack.block = ntohs(*(short*)(buffer + 2));
-            return ack;
-        }
-        case Opcode::ERROR: {
-            ERRORPacket error;
-            error.code = (ErrorCode)ntohs(*(short*)(buffer + 2));
-            error.message = std::string(buffer + 4);
-            return error;
-        }
-        case Opcode::OACK: {
-            OACKPacket oack;
-            size_t offset = 2;
-            oack.options = parseOptions(buffer, offset, len);
-            return oack;
-        }
+    char* end = buffer + len;
+    if (len < 4) {
+        std::cout << "Packet too short" << std::endl;
+        return UnknownPacket();
     }
 
+    Opcode opcode = (Opcode)ntohs(*(short*)buffer);
+    try {
+        switch (opcode) {
+            case Opcode::RRQ: {
+                RRQPacket rrq;
+                rrq.filepath = getStringSafe(buffer + 2, end);
+                rrq.mode = getStringSafe(buffer + 2 + rrq.filepath.length() + 1, end);
+                size_t offset = 2 + rrq.filepath.length() + 1 + rrq.mode.length() + 1;
+                rrq.options = parseOptions(buffer, offset, end);
+                return rrq;
+            }
+            case Opcode::WRQ: {
+                WRQPacket wrq;
+                wrq.filepath = getStringSafe(buffer + 2, end);
+                wrq.mode = getStringSafe(buffer + 2 + wrq.filepath.length() + 1, end);
+                size_t offset = 2 + wrq.filepath.length() + 1 + wrq.mode.length() + 1;
+                wrq.options = parseOptions(buffer, offset, end);
+                return wrq;
+            }
+            case Opcode::DATA: {
+                DATAPacket data;
+                data.block = ntohs(*(short*)(buffer + 2));
+                data.data = buffer + 4;
+                data.len = len - 4;
+                return data;
+            }
+            case Opcode::ACK: {
+                ACKPacket ack;
+                ack.block = ntohs(*(short*)(buffer + 2));
+                return ack;
+            }
+            case Opcode::ERROR: {
+                ERRORPacket error;
+                error.code = (ErrorCode)ntohs(*(short*)(buffer + 2));
+                error.message = getStringSafe(buffer + 4, end);
+                return error;
+            }
+            case Opcode::OACK: {
+                OACKPacket oack;
+                size_t offset = 2;
+                oack.options = parseOptions(buffer, offset, end);
+                return oack;
+            }
+        }
+    } catch (InvalidStringException& e) {
+        std::cout << "Invalid string in packet" << std::endl;
+        return UnknownPacket();
+    }
+
+    std::cout << "Unknown opcode: " << (int)opcode << std::endl;
     return UnknownPacket();
 }
 
@@ -178,10 +207,16 @@ void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug
             } else if constexpr (std::is_same_v<T, OACKPacket>) {
                 return "OACK " + getAddrString(source) + getOptionsString(p.options);
             } else {
-                return std::string("Unknown packet");
+                // Unknown packet should always be written to stdout
+                std::cout << "UNKNOWN PACKET" << std::endl;
+                return std::string();
             }
         },
         packet);
+    if (msg == "") {
+        return;
+    }
+
     if (debug) {
         std::cout << ">> " << msg << std::endl;
     } else {

@@ -101,8 +101,7 @@ int main(int argc, char* argv[]) {
 
                             // Parse options
                             if (options->blkSize.has_value()) {
-                                if (options->blkSize.value() < 8 ||
-                                    options->blkSize.value() > blkSize) {
+                                if (options->blkSize.value() > blkSize) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
                                     send(sock, packetBuilder, &client_addr, &args.address);
@@ -190,8 +189,7 @@ int main(int argc, char* argv[]) {
 
                             // Parse options
                             if (options->blkSize.has_value()) {
-                                if (options->blkSize.value() < 8 ||
-                                    options->blkSize.value() > blkSize) {
+                                if (options->blkSize.value() > blkSize) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
                                     send(sock, packetBuilder, &client_addr, &args.address);

@@ -7,6 +7,11 @@
 #include <vector>
 #include "enums.h"
 
+class InvalidStringException : public std::exception {
+   public:
+    const char* what() const throw() { return "String is invalid"; }
+};
+
 struct Options {
     std::optional<int> blkSize;
     std::optional<int> timeout;
