@@ -10,9 +10,7 @@
 
 enum class State {
     StartSend,
-    StartSendNoOptions,
     StartRecieve,
-    StartRecieveNoOptions,
     InitTransfer,
     Send,
     Recieve,
@@ -136,29 +134,6 @@ int main(int argc, char* argv[]) {
                         // Fall back to default block size
                         blkSize = DEFAULT_BLOCK_SIZE;
                         state = State::InitTransfer;
-                    } else if (std::holds_alternative<ERRORPacket>(packet)) {
-                        // Server responded with error, try again without options
-                        state = State::StartSendNoOptions;
-                    } else {
-                        // Unexpected packet
-                        std::cout << "Unexpected packet" << std::endl;
-                        exit(EXIT_FAILURE);
-                    }
-                    break;
-                }
-                case State::StartSendNoOptions: {
-                    // Create and send WRQ packet
-                    packetBuilder.createWRQ(args.dest_filepath, "octet");
-                    args.address.sin_port = args.port;
-                    send(sock, packetBuilder, &client_addr, &args.address);
-
-                    // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
-
-                    if (std::holds_alternative<ACKPacket>(packet)) {
-                        // Fall back to default block size
-                        blkSize = DEFAULT_BLOCK_SIZE;
-                        state = State::InitTransfer;
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
@@ -237,9 +212,6 @@ int main(int argc, char* argv[]) {
                         // Fall back to default block size
                         blkSize = 512;
                         state = State::InitTransfer;
-                    } else if (std::holds_alternative<ERRORPacket>(packet)) {
-                        // Server responded with error, try again without options
-                        state = State::StartRecieveNoOptions;
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
