@@ -202,10 +202,10 @@ void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug
         [source, dest](auto&& p) {
             using T = std::decay_t<decltype(p)>;
             if constexpr (std::is_same_v<T, RRQPacket>) {
-                return "RRQ " + getAddrString(source) + " " + p.filepath + " " + p.mode +
+                return "RRQ " + getAddrString(source) + " \"" + p.filepath + "\" " + p.mode +
                        getOptionsString(p.options);
             } else if constexpr (std::is_same_v<T, WRQPacket>) {
-                return "WRQ " + getAddrString(source) + " " + p.filepath + " " + p.mode +
+                return "WRQ " + getAddrString(source) + " \"" + p.filepath + "\" " + p.mode +
                        getOptionsString(p.options);
             } else if constexpr (std::is_same_v<T, DATAPacket>) {
                 return "DATA " + getAddrDstString(source, dest) + " " + std::to_string(p.block);
