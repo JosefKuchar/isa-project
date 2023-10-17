@@ -44,5 +44,5 @@ run_client_recv: tftp-client
 run_server: tftp-server
 	./tftp-server -p 1234 files
 
-tar: clean
-	tar cvf xkucha28.tar *
+tar:
+	tar cvf xkucha28.tar src/*.cc src/*.h Makefile README.md
