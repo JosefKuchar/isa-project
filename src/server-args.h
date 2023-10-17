@@ -19,4 +19,7 @@ class ServerArgs {
     std::filesystem::path path;
 
     ServerArgs(int argc, char** argv);
+
+   private:
+    void printHelp();
 };

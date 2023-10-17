@@ -9,6 +9,10 @@
 #include <iostream>
 #include "enums.h"
 
+void ServerArgs::printHelp() {
+    std::cout << "Usage: tftp-server [-p port] root_dirpath" << std::endl;
+}
+
 ServerArgs::ServerArgs(int argc, char** argv) {
     std::string port;
     std::string dirPath;
@@ -17,8 +21,9 @@ ServerArgs::ServerArgs(int argc, char** argv) {
 
     // Check number of arguments
     if (argc != 2 && argc != 4) {
+        this->printHelp();
         std::cout << "Invalid number of arguments" << std::endl;
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Only root dir path specified
@@ -36,8 +41,9 @@ ServerArgs::ServerArgs(int argc, char** argv) {
             dirPath = argv[1];
             // Invalid arguments
         } else {
+            this->printHelp();
             std::cout << "Invalid arguments" << std::endl;
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -45,8 +51,9 @@ ServerArgs::ServerArgs(int argc, char** argv) {
         // Parse port
         auto res = std::from_chars(port.data(), port.data() + port.size(), parsed_port);
         if (res.ec != std::errc()) {
+            this->printHelp();
             std::cout << "Invalid port" << std::endl;
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     } else {
         // Use default port
@@ -56,8 +63,9 @@ ServerArgs::ServerArgs(int argc, char** argv) {
     // Parse path and check if it is a directory
     this->path = std::filesystem::canonical(dirPath);
     if (!std::filesystem::is_directory(this->path)) {
+        this->printHelp();
         std::cout << "Invalid root directory path" << std::endl;
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     this->address.sin_family = AF_INET;

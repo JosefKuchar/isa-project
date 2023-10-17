@@ -24,4 +24,7 @@ class ClientArgs {
     bool send;
 
     ClientArgs(int argc, char** argv);
+
+   private:
+    void printHelp();
 };
