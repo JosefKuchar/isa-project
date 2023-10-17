@@ -37,7 +37,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
     Packet packet;
     int block_count = 1;
     bool next_block = true;
-    size_t blen;
+    size_t blen = 0;
 
     try {
         while (state != State::End) {
@@ -258,7 +258,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         packetBuilder.createACK(block_count);
                         send(sock, packetBuilder, clientAddr, &args.address);
 
-                        if (data.len < blkSize) {
+                        if (data.len < (size_t)blkSize) {
                             state = State::End;
                             break;
                         }
@@ -274,6 +274,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
                     break;
                 }
+                default:
+                    break;
             }
         }
     } catch (TimeoutException& e) {

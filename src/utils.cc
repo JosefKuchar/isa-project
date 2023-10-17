@@ -61,7 +61,7 @@ std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool 
     return std::make_tuple(lastR, removeLast, size);
 }
 
-size_t binaryToNetascii(char* buffer, size_t size, size_t maxSize) {
+int binaryToNetascii(char* buffer, size_t size, size_t maxSize) {
     size_t i = 0;
     size_t clipped = 0;
     while (i < size) {

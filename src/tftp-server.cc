@@ -57,7 +57,6 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     std::fstream file;
 
     bool nextBlock = true;
-    int retryCount = 0;
     int bytesRead = 0;
     bool netascii = false;
     bool lastWasR = false;
@@ -250,7 +249,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
 
                         packetBuilder.createACK(currentBlock - 1);
                         send(sock, packetBuilder, &server_addr, &client_addr);
-                        if (data.len < blockSize) {
+                        if (data.len < (size_t)blockSize) {
                             state = State::End;
                         }
                     } else {
@@ -265,7 +264,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     if (nextBlock) {
                         file.read(fileBuffer, blockSize);
                         if (netascii) {
-                            size_t size = binaryToNetascii(fileBuffer, file.gcount(), blockSize);
+                            int size = binaryToNetascii(fileBuffer, file.gcount(), blockSize);
                             if (size < 0) {
                                 file.seekg(size, std::ios::cur);
                                 bytesRead = blockSize;
@@ -302,9 +301,11 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     }
                     break;
                 }
+                default:
+                    break;
             }
         }
-    } catch (TimeoutException e) {
+    } catch (TimeoutException& e) {
         std::cout << "Timeout, aborting" << std::endl;
     }
 }

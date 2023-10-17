@@ -56,4 +56,4 @@ std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool 
  * @param maxSize Maximum size of buffer
  * @return How many bytes were clipped
  */
-size_t binaryToNetascii(char* buffer, size_t size, size_t maxSize);
+int binaryToNetascii(char* buffer, size_t size, size_t maxSize);
