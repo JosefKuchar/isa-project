@@ -1,48 +1,55 @@
-# TFTP Client & Server
+# TFTP Client a Server
 
-Josef Kuchař (xkucha28), 25. 9. 2023
+Josef Kuchař (xkucha28), 17. 10. 2023
 
-## Description
+## Popis
 
-TODO
+Implementace TFTP klienta a serveru v jazyce C++. Vše je implementováno dle zadání a příslušných RFC.
 
-## How to run
+## Spuštění
 
-### The client
+### Klienta
 
 `tftp-client -h hostname [-p port] [-f filepath] -t dest_filepath`
 
-- `-h` Server hostname
-- `-p` Server port (default 69)
-- `-f` Input file (default from standard input)
-- `-t` Destination file path
+- `-h` IP adresa/doménový název vzdáleného serveru
+- `-p` port vzdáleného serveru
+  pokud není specifikován předpokládá se výchozí dle specifikace
+- `-f` cesta ke stahovanému souboru na serveru (download)
+  pokud není specifikován používá se obsah stdin (upload)
+- `-t` cesta, pod kterou bude soubor na vzdáleném serveru/lokálně uložen
 
-#### Example
+#### Příklad
 
-`tftp-client -p 1234 -h 127.0.0.1 -t test.txt -f tftp-client.cc`
+`./tftp-client -p 1234 -h 127.0.0.1 -t test.txt -f tftp-client.cc`
 
-### The server
+### Serveru
 
 `tftp-server [-p port] root_dirpath`
 
-- `-p` Server port (default 69)
-- `root_dirpath` File destination folder
+- `-p` místní port, na kterém bude server očekávat příchozí spojení
+- cesta k adresáři, pod kterým se budou ukládat příchozí soubory
 
-#### Example
+#### Příklad
 
-`tftp-server -p 1234 files`
+`./tftp-server -p 1234 files`
 
-## List of submitted files
+## Seznam odevzdaných souborů
 
-- `client-args.cc`
-- `client-args.h`
-- `server-args.cc`
-- `server-args.h`
-- `packet-builder.cc`
-- `packet-builder.h`
-- `packet.cc`
-- `packet.h`
-- `enums.h`
-- `tftp-client.cc`
-- `tftp-server.cc`
+- `src`
+  - `client-args.cc`
+  - `client-args.h`
+  - `enums.h`
+  - `packet-builder.cc`
+  - `packet-builder.h`
+  - `packet.cc`
+  - `packet.h`
+  - `server-args.cc`
+  - `server-args.h`
+  - `settings.h`
+  - `tftp-client.cc`
+  - `tftp-server.cc`
+  - `utils.cc`
+  - `utils.h`
 - `Makefile`
+- `README.md`
