@@ -13,7 +13,7 @@ ServerArgs::ServerArgs(int argc, char** argv) {
 
     // Check number of arguments
     if (argc != 2 && argc != 4) {
-        std::cerr << "Invalid number of arguments" << std::endl;
+        std::cout << "Invalid number of arguments" << std::endl;
         exit(1);
     }
 
@@ -32,7 +32,7 @@ ServerArgs::ServerArgs(int argc, char** argv) {
             dirPath = argv[1];
             // Invalid arguments
         } else {
-            std::cerr << "Invalid arguments" << std::endl;
+            std::cout << "Invalid arguments" << std::endl;
             exit(1);
         }
     }
@@ -41,7 +41,7 @@ ServerArgs::ServerArgs(int argc, char** argv) {
         // Parse port
         auto res = std::from_chars(port.data(), port.data() + port.size(), parsed_port);
         if (res.ec != std::errc()) {
-            std::cerr << "Invalid port" << std::endl;
+            std::cout << "Invalid port" << std::endl;
             exit(1);
         }
     } else {
@@ -52,7 +52,7 @@ ServerArgs::ServerArgs(int argc, char** argv) {
     // Parse path and check if it is a directory
     this->path = std::filesystem::canonical(dirPath);
     if (!std::filesystem::is_directory(this->path)) {
-        std::cerr << "Invalid root directory path" << std::endl;
+        std::cout << "Invalid root directory path" << std::endl;
         exit(1);
     }
 

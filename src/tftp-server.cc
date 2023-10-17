@@ -10,6 +10,9 @@
 enum class State { Start, StartRecieve, Recieve, Send, End };
 
 void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesystem::path path) {
+    // Initalize random seed for packet loss simulation if enabled
+    srand(time(NULL));
+    // Turn off buffering so we can see stdout and stderr in sync
     setbuf(stdout, NULL);
 
     int sock = 0, opt = 1;
@@ -23,23 +26,23 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     tv.tv_usec = 999999;
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
-        perror("socket");
+        std::cout << "Failed to create socket" << std::endl;
         exit(EXIT_FAILURE);
     }
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        perror("setsockopt");
+        std::cout << "Failed to set socket options" << std::endl;
         exit(EXIT_FAILURE);
     }
     if (bind(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("bind");
+        std::cout << "Failed to bind socket" << std::endl;
         exit(EXIT_FAILURE);
     }
     if (getsockname(sock, (struct sockaddr*)&server_addr, &len)) {
-        perror("getsockname");
+        std::cout << "Failed to get socket name" << std::endl;
         exit(EXIT_FAILURE);
     }
     if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("setsockopt");
+        std::cout << "Failed to set socket timeout" << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -47,8 +50,6 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     char fileBuffer[BUFSIZE] = {0};
     PacketBuilder packetBuilder(buffer);
     State state = State::Start;
-    int currentBlock = 1;
-    int blockSize = DEFAULT_BLOCK_SIZE;
     std::fstream file;
 
     bool nextBlock = true;
@@ -56,6 +57,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     int bytesRead = 0;
     bool netascii = false;
     bool lastWasR = false;
+    int currentBlock = 1;
+    int blockSize = DEFAULT_BLOCK_SIZE;
 
     try {
         while (state != State::End) {
@@ -104,7 +107,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
-                                    perror("setsockopt");
+                                    std::cout << "Failed to set socket timeout" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
                             }
@@ -197,7 +200,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
-                                    perror("setsockopt");
+                                    std::cout << "Failed to set socket timeout" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
                             }
@@ -224,12 +227,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
                         if (data.block == currentBlock) {
-                            nextBlock = true;
-                        } else {
-                            nextBlock = false;
-                        }
+                            currentBlock++;
 
-                        if (nextBlock) {
                             size_t len = data.len;
                             if (netascii) {
                                 auto ret = netasciiToBinary(data.data, data.len, lastWasR);
@@ -241,19 +240,17 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             }
                             file.write(data.data, len);
                         }
-                        packetBuilder.createACK(currentBlock);
+
+                        packetBuilder.createACK(currentBlock - 1);
                         send(sock, packetBuilder, &server_addr, &client_addr);
-
-                        if (nextBlock) {
-                            currentBlock++;
-                        }
-
                         if (data.len < blockSize) {
                             state = State::End;
                         }
                     } else {
                         packetBuilder.createERROR(ErrorCode::IllegalOperation,
                                                   "Expected DATA packet");
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::End;
                     }
                     break;
                 }
@@ -289,6 +286,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     } else {
                         packetBuilder.createERROR(ErrorCode::IllegalOperation,
                                                   "Expected ACK packet");
+                        send(sock, packetBuilder, &server_addr, &client_addr);
+                        break;
                     }
 
                     if (bytesRead < blockSize) {
@@ -304,42 +303,40 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
 }
 
 int main(int argc, char* argv[]) {
+    // Turn off buffering so we can see stdout and stderr in sync
+    setbuf(stdout, NULL);
+
     ServerArgs args(argc, argv);
     int sock = 0;
     int opt = 1;
     char buffer[BUFSIZE] = {0};
     socklen_t len = sizeof(args.address);
     PacketBuilder packetBuilder(buffer);
-
     struct sockaddr_in client_addr;
 
-    setbuf(stdout, NULL);
-
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
-        perror("socket");
+        std::cout << "Failed to create socket" << std::endl;
         exit(EXIT_FAILURE);
     }
-
     // Attach socket to the port
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        perror("setsockopt");
+        std::cout << "Failed to set socket options" << std::endl;
         exit(EXIT_FAILURE);
     }
-
     // Bind socket to the address and port
     if (bind(sock, (struct sockaddr*)&args.address, sizeof(args.address)) < 0) {
-        perror("bind");
+        std::cout << "Failed to bind socket" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     std::cout << "Server listening on port " << ntohs(args.address.sin_port) << std::endl;
 
+    // Main loop
     while (true) {
         Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len);
         std::cout << "Received packet on main thread, creating new thread..." << std::endl;
         std::thread client_thread(client_handler, client_addr, packet, args.path);
         client_thread.detach();
     }
-
-    return 0;
+    return EXIT_SUCCESS;
 }

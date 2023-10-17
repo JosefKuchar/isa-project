@@ -17,58 +17,20 @@ enum class State {
     End,
 };
 
-int main(int argc, char* argv[]) {
-    // Initalize random seed for packet loss simulation if enabled
-    srand(time(NULL));
-
-    // Parse arguments
-    ClientArgs args(argc, argv);
-
-    // Turn off buffering so we can see stdout and stderr in sync
-    setbuf(stdout, NULL);
-
-    // Create client address
-    struct sockaddr_in client_addr;
-    client_addr.sin_family = AF_INET;
-    client_addr.sin_addr.s_addr = INADDR_ANY;
-    client_addr.sin_port = htons(0);
-    socklen_t client_len = sizeof(client_addr);
-
-    int sock;
+/**
+ * Handle transfer
+ * @param sock Socket
+ * @param clientAddr Client address
+ * @param args Client arguments
+ * @param tv Timeout
+ */
+void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, struct timeval tv) {
+    State state = args.send ? State::StartSend : State::StartRecieve;
     int blkSize = 1024;
     char buffer[BUFSIZE] = {0};
     std::unique_ptr<char[]> file_buf;
-    State state = args.send ? State::StartSend : State::StartRecieve;
     PacketBuilder packetBuilder(buffer);
     Packet packet;
-
-    struct timeval tv;
-    tv.tv_sec = DEFAULT_TIMEOUT;
-
-    std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
-              << ntohs(args.address.sin_port) << std::endl;
-
-    // Create socket
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        std::cerr << "Socket creation error." << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    // Bind socket to our address
-    if (bind(sock, (const struct sockaddr*)&client_addr, sizeof(client_addr)) < 0) {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
-    // Read assigned port
-    if (getsockname(sock, (struct sockaddr*)&client_addr, &client_len)) {
-        perror("getsockname");
-        exit(EXIT_FAILURE);
-    }
-    // Set timeout
-    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
     int block_count = 1;
     bool next_block = true;
     size_t blen;
@@ -81,10 +43,10 @@ int main(int argc, char* argv[]) {
                     packetBuilder.createWRQ(args.dest_filepath, "octet");
                     packetBuilder.addBlksizeOption(blkSize);
                     packetBuilder.addTimeoutOption(DEFAULT_TIMEOUT);
-                    send(sock, packetBuilder, &client_addr, &args.address);
+                    send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
 
                     if (std::holds_alternative<OACKPacket>(packet)) {
                         OACKPacket oack = std::get<OACKPacket>(packet);
@@ -93,7 +55,7 @@ int main(int argc, char* argv[]) {
                             if (!options->valid) {
                                 packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                           "Invalid option");
-                                send(sock, packetBuilder, &client_addr, &args.address);
+                                send(sock, packetBuilder, clientAddr, &args.address);
                                 exit(EXIT_FAILURE);
                             }
 
@@ -102,7 +64,7 @@ int main(int argc, char* argv[]) {
                                 if (options->blkSize.value() > blkSize) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
-                                    send(sock, packetBuilder, &client_addr, &args.address);
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     exit(EXIT_FAILURE);
                                 }
                                 blkSize = options->blkSize.value();
@@ -111,13 +73,13 @@ int main(int argc, char* argv[]) {
                                 if (options->timeout.value() != DEFAULT_TIMEOUT) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Timeout does not match");
-                                    send(sock, packetBuilder, &client_addr, &args.address);
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     exit(EXIT_FAILURE);
                                 }
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
-                                    perror("setsockopt");
+                                    std::cout << "Set timeout failed" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
                             }
@@ -125,7 +87,7 @@ int main(int argc, char* argv[]) {
                             state = State::InitTransfer;
                         } else {
                             packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
-                            send(sock, packetBuilder, &client_addr, &args.address);
+                            send(sock, packetBuilder, clientAddr, &args.address);
                             exit(EXIT_FAILURE);
                         }
 
@@ -144,12 +106,13 @@ int main(int argc, char* argv[]) {
                 case State::StartRecieve: {
                     // Create and send RRQ packet
                     packetBuilder.createRRQ(args.dest_filepath, "octet");
+                    packetBuilder.addTsizeOption(0);
                     packetBuilder.addBlksizeOption(blkSize);
                     packetBuilder.addTimeoutOption(DEFAULT_TIMEOUT);
-                    send(sock, packetBuilder, &client_addr, &args.address);
+                    send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
 
                     if (std::holds_alternative<OACKPacket>(packet)) {
                         OACKPacket oack = std::get<OACKPacket>(packet);
@@ -158,7 +121,7 @@ int main(int argc, char* argv[]) {
                             if (!options->valid) {
                                 packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                           "Invalid option");
-                                send(sock, packetBuilder, &client_addr, &args.address);
+                                send(sock, packetBuilder, clientAddr, &args.address);
                                 exit(EXIT_FAILURE);
                             }
 
@@ -167,7 +130,7 @@ int main(int argc, char* argv[]) {
                                 if (options->blkSize.value() > blkSize) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
-                                    send(sock, packetBuilder, &client_addr, &args.address);
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     exit(EXIT_FAILURE);
                                 }
                                 blkSize = options->blkSize.value();
@@ -176,13 +139,13 @@ int main(int argc, char* argv[]) {
                                 if (options->timeout.value() != DEFAULT_TIMEOUT) {
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Timeout does not match");
-                                    send(sock, packetBuilder, &client_addr, &args.address);
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     exit(EXIT_FAILURE);
                                 }
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
-                                    perror("setsockopt");
+                                    std::cout << "Set timeout failed" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
                             }
@@ -190,21 +153,27 @@ int main(int argc, char* argv[]) {
                             state = State::InitTransfer;
                         } else {
                             packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
-                            send(sock, packetBuilder, &client_addr, &args.address);
+                            send(sock, packetBuilder, clientAddr, &args.address);
                             exit(EXIT_FAILURE);
                         }
 
-                        packetBuilder.createACK(0);
-                        send(sock, packetBuilder, &client_addr, &args.address);
+                        while (true) {
+                            packetBuilder.createACK(0);
+                            send(sock, packetBuilder, clientAddr, &args.address);
 
-                        packet =
-                            recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
-                        if (std::holds_alternative<DATAPacket>(packet)) {
-                            state = State::InitTransfer;
-                        } else {
-                            // Unexpected packet
-                            std::cout << "Unexpected packet" << std::endl;
-                            exit(EXIT_FAILURE);
+                            packet =
+                                recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                            if (std::holds_alternative<DATAPacket>(packet)) {
+                                state = State::InitTransfer;
+                                break;
+                            } else if (std::holds_alternative<OACKPacket>(packet)) {
+                                // Old packet, resend ACK
+                                std::cout << "Old packet, resending ACK" << std::endl;
+                            } else {
+                                // Unexpected packet
+                                std::cout << "Unexpected packet" << std::endl;
+                                exit(EXIT_FAILURE);
+                            }
                         }
 
                         state = State::InitTransfer;
@@ -243,10 +212,10 @@ int main(int argc, char* argv[]) {
 
                     // Create and send DATA packet
                     packetBuilder.createDATA(block_count, file_buf.get(), blen);
-                    send(sock, packetBuilder, &client_addr, &args.address);
+                    send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
 
                     if (std::holds_alternative<ACKPacket>(packet)) {
                         ACKPacket ack = std::get<ACKPacket>(packet);
@@ -258,6 +227,9 @@ int main(int argc, char* argv[]) {
                             // Old ACK packet, resend DATA packet
                             next_block = false;
                         }
+                    } else if (std::holds_alternative<OACKPacket>(packet)) {
+                        // Old packet, resend DATA packet
+                        next_block = false;
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
@@ -275,20 +247,17 @@ int main(int argc, char* argv[]) {
                             fwrite(data.data, 1, data.len, args.input_file);
 
                             block_count++;
-                            next_block = true;
-                        } else {
-                            // Old DATA packet, resend ACK packet
-                            next_block = false;
                         }
-
                         // Create and send ACK packet
                         packetBuilder.createACK(block_count);
-                        send(sock, packetBuilder, &client_addr, &args.address);
+                        send(sock, packetBuilder, clientAddr, &args.address);
 
                         if (data.len < blkSize) {
                             state = State::End;
                             break;
                         }
+                    } else if (std::holds_alternative<OACKPacket>(packet)) {
+                        // Old packet, resend ACK packet
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
@@ -296,7 +265,7 @@ int main(int argc, char* argv[]) {
                     }
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, &client_addr, &args.len);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
                     break;
                 }
             }
@@ -305,6 +274,58 @@ int main(int argc, char* argv[]) {
         std::cout << "Timeout" << std::endl;
         exit(EXIT_FAILURE);
     }
+}
+
+int main(int argc, char* argv[]) {
+    // Initalize random seed for packet loss simulation if enabled
+    srand(time(NULL));
+
+    // Parse arguments
+    ClientArgs args(argc, argv);
+
+    // Turn off buffering so we can see stdout and stderr in sync
+    setbuf(stdout, NULL);
+
+    // Create client address
+    struct sockaddr_in clientAddr;
+    clientAddr.sin_family = AF_INET;
+    clientAddr.sin_addr.s_addr = INADDR_ANY;
+    clientAddr.sin_port = htons(0);
+    socklen_t clientLen = sizeof(clientAddr);
+
+    int sock;
+
+    struct timeval tv = {
+        .tv_sec = DEFAULT_TIMEOUT,
+        .tv_usec = 0,
+    };
+
+    std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
+              << ntohs(args.address.sin_port) << std::endl;
+
+    // Create socket
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        std::cout << "Socket creation error" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // Bind socket to our address
+    if (bind(sock, (const struct sockaddr*)&clientAddr, sizeof(clientAddr)) < 0) {
+        std::cout << "Bind failed" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // Read assigned port
+    if (getsockname(sock, (struct sockaddr*)&clientAddr, &clientLen)) {
+        std::cout << "Reading binded port failed" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // Set timeout
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        std::cout << "Set timeout failed" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Handle transfer
+    handleTransfer(sock, &clientAddr, args, tv);
 
     return EXIT_SUCCESS;
 }

@@ -41,19 +41,19 @@ ClientArgs::ClientArgs(int argc, char** argv) {
 
     // Check if hostname is present
     if (!hostname_set) {
-        std::cerr << "Hostname not set" << std::endl;
+        std::cout << "Hostname not set" << std::endl;
         exit(1);
     }
 
     // Check if destination filepath is present
     if (!dest_file_set) {
-        std::cerr << "Destination filepath not set" << std::endl;
+        std::cout << "Destination filepath not set" << std::endl;
         exit(1);
     }
 
     // Parse address and check if it is valid
     if (getaddrinfo(hostname.c_str(), port_str, &hints, &addrs) != 0) {
-        std::cerr << "Invalid hostname" << std::endl;
+        std::cout << "Invalid hostname" << std::endl;
         exit(1);
     }
 
@@ -61,7 +61,7 @@ ClientArgs::ClientArgs(int argc, char** argv) {
     if (port_set) {
         auto res = std::from_chars(port.data(), port.data() + port.size(), parsed_port);
         if (res.ec != std::errc()) {
-            std::cerr << "Invalid port" << std::endl;
+            std::cout << "Invalid port" << std::endl;
             exit(1);
         }
     } else {
@@ -73,7 +73,7 @@ ClientArgs::ClientArgs(int argc, char** argv) {
         // Write to file
         this->input_file = fopen(source_file.c_str(), "wb");
         if (this->input_file == nullptr) {
-            std::cerr << "Error opening file" << std::endl;
+            std::cout << "Error opening file" << std::endl;
             exit(1);
         }
         // This means we are downloading a file
