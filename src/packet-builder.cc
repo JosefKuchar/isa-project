@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include "packet-builder.h"
 #include <arpa/inet.h>
 #include <cstring>

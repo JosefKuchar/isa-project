@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include <unistd.h>
 #include <iostream>
 #include <memory>
@@ -48,6 +52,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
 
+                    // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
                         OACKPacket oack = std::get<OACKPacket>(packet);
                         std::optional<Options> options = parseOptionsToStruct(oack.options);
@@ -114,6 +119,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
 
+                    // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
                         OACKPacket oack = std::get<OACKPacket>(packet);
                         std::optional<Options> options = parseOptionsToStruct(oack.options);

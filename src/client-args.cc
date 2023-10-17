@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include "client-args.h"
 #include <arpa/inet.h>
 #include <netdb.h>

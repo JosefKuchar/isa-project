@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include "server-args.h"
 #include <arpa/inet.h>
 #include <unistd.h>

@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include "utils.h"
 #include <cstring>
 #include <iostream>

@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include "packet.h"
 #include <arpa/inet.h>
 #include <algorithm>

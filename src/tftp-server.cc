@@ -1,3 +1,7 @@
+/**
+ * @author Josef Kuchař (xkucha28)
+ */
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -64,6 +68,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
         while (state != State::End) {
             switch (state) {
                 case State::Start: {
+                    // Read request
                     if (std::holds_alternative<RRQPacket>(packet)) {
                         RRQPacket rrq = std::get<RRQPacket>(packet);
                         path /= rrq.filepath;
@@ -147,6 +152,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         }
 
                         state = State::Send;
+                        // Write request
                     } else if (std::holds_alternative<WRQPacket>(packet)) {
                         WRQPacket wrq = std::get<WRQPacket>(packet);
                         path /= wrq.filepath;
@@ -215,6 +221,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         }
 
                         state = State::Recieve;
+                        // Invalid request
                     } else {
                         packetBuilder.createERROR(ErrorCode::IllegalOperation, "Illegal operation");
                         send(sock, packetBuilder, &server_addr, &client_addr);
