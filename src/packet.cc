@@ -87,12 +87,16 @@ std::vector<std::pair<std::string, std::string>> parseOptions(char* buffer,
                                                               size_t offset,
                                                               char* end) {
     std::vector<std::pair<std::string, std::string>> options;
+    // Pointer to current option c-string
     char* options_p = buffer + offset;
     while (options_p < end) {
+        // Option name
         std::string option = getStringSafe(options_p, end);
         options_p += option.length() + 1;
+        // Option value
         std::string value = getStringSafe(options_p, end);
         options_p += value.length() + 1;
+        // Add option to option vector
         options.push_back(std::make_pair(option, value));
     }
     return options;

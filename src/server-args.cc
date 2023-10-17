@@ -10,6 +10,8 @@ ServerArgs::ServerArgs(int argc, char** argv) {
     std::string dirPath;
     int parsed_port;
     int port_set = true;
+
+    // Check number of arguments
     if (argc != 2 && argc != 4) {
         std::cerr << "Invalid number of arguments" << std::endl;
         exit(1);
@@ -47,6 +49,7 @@ ServerArgs::ServerArgs(int argc, char** argv) {
         parsed_port = DEFAULT_PORT;
     }
 
+    // Parse path and check if it is a directory
     this->path = std::filesystem::canonical(dirPath);
     if (!std::filesystem::is_directory(this->path)) {
         std::cerr << "Invalid root directory path" << std::endl;
@@ -56,4 +59,5 @@ ServerArgs::ServerArgs(int argc, char** argv) {
     this->address.sin_family = AF_INET;
     this->address.sin_port = htons(parsed_port);
     this->address.sin_addr.s_addr = INADDR_ANY;
+    this->len = sizeof(this->address);
 }

@@ -18,7 +18,7 @@ enum class State {
 };
 
 int main(int argc, char* argv[]) {
-    // Initalize random seed
+    // Initalize random seed for packet loss simulation if enabled
     srand(time(NULL));
 
     // Parse arguments
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     Packet packet;
 
     struct timeval tv;
-    tv.tv_sec = 1;
+    tv.tv_sec = DEFAULT_TIMEOUT;
 
     std::cout << "Connecting to " << inet_ntoa(args.address.sin_addr) << ":"
               << ntohs(args.address.sin_port) << std::endl;

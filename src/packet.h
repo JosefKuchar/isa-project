@@ -71,4 +71,9 @@ Packet parsePacket(char* buffer, size_t len);
  */
 void printPacket(Packet packet, sockaddr_in source, sockaddr_in dest, bool debug);
 
+/**
+ * Parse options vector to struct
+ * @param opts Options vector
+ * @return Options struct
+ */
 std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, std::string>> opts);
