@@ -341,7 +341,7 @@ int main(int argc, char* argv[]) {
 
     // Main loop
     while (true) {
-        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len);
+        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len, -1, true);
         std::cout << "Received packet on main thread, creating new thread..." << std::endl;
         std::thread client_thread(client_handler, client_addr, packet, args.path);
         client_thread.detach();

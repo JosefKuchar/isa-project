@@ -33,13 +33,15 @@ void send(int sock,
  * @param dest_addr Destination address (client)
  * @param len Length of source address
  * @param depth Resend depth, -1 for no resend
+ * @param saveAddr Whether to save address of sender
  */
 Packet recieve(int sock,
                PacketBuilder builder,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
                socklen_t* len,
-               int depth = 0);
+               int depth = 0,
+               bool saveAddr = false);
 
 /**
  * Convert netascii to binary inplace

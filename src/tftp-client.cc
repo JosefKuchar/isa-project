@@ -50,7 +50,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                    packet =
+                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, 0, true);
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
@@ -117,7 +118,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                    packet =
+                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, 0, true);
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {

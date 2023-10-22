@@ -29,8 +29,11 @@ Packet recieve(int sock,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
                socklen_t* len,
-               int depth) {
-    ssize_t n = recvfrom(sock, builder.getBuffer(), BUFSIZE, 0, (struct sockaddr*)source_addr, len);
+               int depth,
+               bool saveAddr) {
+    struct sockaddr_in currentSourceAddr;
+    ssize_t n =
+        recvfrom(sock, builder.getBuffer(), BUFSIZE, 0, (struct sockaddr*)&currentSourceAddr, len);
     if (n < 0) {
         if (depth >= 0 && depth < RETRY_COUNT) {
             std::cout << "Timeout, resending last packet (below)" << std::endl;
@@ -40,8 +43,24 @@ Packet recieve(int sock,
             throw TimeoutException();
         }
     }
+
     Packet packet = parsePacket(builder.getBuffer(), n);
     printPacket(packet, *source_addr, *dest_addr, false);
+
+    if (saveAddr) {
+        *source_addr = currentSourceAddr;
+    } else {
+        // Check if packet is from correct address
+        if (currentSourceAddr.sin_addr.s_addr != source_addr->sin_addr.s_addr ||
+            currentSourceAddr.sin_port != source_addr->sin_port) {
+            std::cout << "Packet from wrong address, sending error to source" << std::endl;
+            builder.createERROR(ErrorCode::UnknownTID, "Packet from wrong address");
+            send(sock, builder, dest_addr, &currentSourceAddr);
+
+            return recieve(sock, builder, source_addr, dest_addr, len, depth);
+        }
+    }
+
     return packet;
 }
 
