@@ -41,41 +41,31 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
     Options options;
     options.valid = true;
     for (auto& [option, value] : opts) {
-        // Check if value is a number
         try {
-            int valueNumber = std::stoi(value);
-
             // To lower
             std::transform(option.begin(), option.end(), option.begin(), ::tolower);
 
             if (option == "blksize") {
-                options.blkSize = valueNumber;
-
+                options.blkSize = std::stoi(value);
                 if (options.blkSize < 8 && options.blkSize > 65464) {
                     std::cout << "Invalid block size: " << options.blkSize.value() << std::endl;
                     options.valid = false;
                     break;
                 }
             } else if (option == "timeout") {
-                options.timeout = valueNumber;
-
+                options.timeout = std::stoi(value);
                 if (options.timeout < 0 && options.timeout > 255) {
                     std::cout << "Invalid timeout: " << options.timeout.value() << std::endl;
                     options.valid = false;
                     break;
                 }
             } else if (option == "tsize") {
-                options.tSize = valueNumber;
-
+                options.tSize = std::stoi(value);
                 if (options.tSize < 0) {
                     std::cout << "Invalid tsize: " << options.tSize.value() << std::endl;
                     options.valid = false;
                     break;
                 }
-            } else {
-                std::cout << "Unknown option: " << option << std::endl;
-                options.valid = false;
-                break;
             }
         } catch (std::invalid_argument& e) {
             std::cout << "Invalid value: " << value << std::endl;
