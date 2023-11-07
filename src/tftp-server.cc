@@ -27,7 +27,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     server_addr.sin_addr.s_addr = INADDR_ANY;
     socklen_t len = sizeof(server_addr);
     struct timeval tv;
-    tv.tv_usec = 999999;
+    tv.tv_sec = 1;
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
         std::cout << "Failed to create socket" << std::endl;

@@ -110,7 +110,7 @@ int getFilesize(std::fstream& file, bool netascii) {
         if (file.eof()) {
             break;
         }
-        if (netascii && c == '\n') {
+        if (netascii && (c == '\n' || c == '\r')) {
             size++;
         }
         size++;
