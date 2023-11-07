@@ -309,6 +309,9 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
         }
     } catch (TimeoutException& e) {
         std::cout << "Timeout, aborting" << std::endl;
+    } catch (std::filesystem::filesystem_error& e) {
+        packetBuilder.createERROR(ErrorCode::AccessViolation, "Filesystem error");
+        send(sock, packetBuilder, &server_addr, &client_addr);
     }
 }
 
