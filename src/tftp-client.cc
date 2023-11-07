@@ -203,7 +203,6 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         state = State::Send;
                     } else {
                         state = State::Recieve;
-                        block_count = 0;
                     }
                     break;
                 }
@@ -249,7 +248,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
                         // Check block number (we are expecting the next block)
-                        if (data.block == block_count + 1) {
+                        if (data.block == block_count) {
                             // Write to file
                             std::cout << "Writing " << data.len << " bytes" << std::endl;
                             fwrite(data.data, 1, data.len, args.input_file);
@@ -257,7 +256,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             block_count++;
                         }
                         // Create and send ACK packet
-                        packetBuilder.createACK(block_count);
+                        packetBuilder.createACK(block_count - 1);
                         send(sock, packetBuilder, clientAddr, &args.address);
 
                         if (data.len < (size_t)blkSize) {

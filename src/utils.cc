@@ -100,3 +100,25 @@ int binaryToNetascii(char* buffer, size_t size, size_t maxSize) {
     }
     return size - clipped;
 }
+
+int getFilesize(std::fstream& file, bool netascii) {
+    // Loop through file to get size
+    int size = 0;
+    while (true) {
+        char c;
+        file.read(&c, 1);
+        if (file.eof()) {
+            break;
+        }
+        if (netascii && c == '\n') {
+            size++;
+        }
+        size++;
+    }
+
+    // Seek back to beginning
+    file.clear();
+    file.seekg(0, std::ios::beg);
+
+    return size;
+}

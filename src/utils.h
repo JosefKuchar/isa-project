@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <fstream>
 #include <tuple>
 #include "packet-builder.h"
 #include "packet.h"
@@ -59,3 +60,11 @@ std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool 
  * @return How many bytes were clipped
  */
 int binaryToNetascii(char* buffer, size_t size, size_t maxSize);
+
+/**
+ * Get filesize
+ * @param file File
+ * @param netascii Whether to we are using netascii
+ * @return Filesize
+ */
+int getFilesize(std::fstream& file, bool netascii);

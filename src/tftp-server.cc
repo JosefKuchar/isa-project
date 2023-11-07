@@ -123,7 +123,9 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                     state = State::End;
                                     break;
                                 }
-                                packetBuilder.addTsizeOption(std::filesystem::file_size(path));
+                                int size = getFilesize(file, netascii);
+                                std::cout << "Filesize: " << size << std::endl;
+                                packetBuilder.addTsizeOption(size);
                             }
 
                             send(sock, packetBuilder, &server_addr, &client_addr);
