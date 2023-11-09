@@ -60,6 +60,9 @@
     "thread": "cpp",
     "ranges": "cpp",
     "codecvt": "cpp",
-    "iomanip": "cpp"
+    "iomanip": "cpp",
+    "csignal": "cpp",
+    "condition_variable": "cpp",
+    "mutex": "cpp"
   }
 }

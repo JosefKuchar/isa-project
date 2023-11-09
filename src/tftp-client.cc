@@ -3,6 +3,8 @@
  */
 
 #include <unistd.h>
+#include <atomic>
+#include <csignal>
 #include <iostream>
 #include <memory>
 #include "arpa/inet.h"
@@ -20,6 +22,8 @@ enum class State {
     Recieve,
     End,
 };
+
+std::atomic<bool> running(true);
 
 /**
  * Handle transfer
@@ -50,8 +54,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet =
-                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, 0, true);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len,
+                                     running, 0, true);
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
@@ -118,8 +122,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet =
-                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, 0, true);
+                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len,
+                                     running, 0, true);
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
@@ -169,8 +173,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             packetBuilder.createACK(0);
                             send(sock, packetBuilder, clientAddr, &args.address);
 
-                            packet =
-                                recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                            packet = recieve(sock, packetBuilder, &args.address, clientAddr,
+                                             &args.len, running);
                             if (std::holds_alternative<DATAPacket>(packet)) {
                                 state = State::InitTransfer;
                                 break;
@@ -222,7 +226,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                    packet =
+                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, running);
 
                     if (std::holds_alternative<ACKPacket>(packet)) {
                         ACKPacket ack = std::get<ACKPacket>(packet);
@@ -272,7 +277,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     }
 
                     // Recieve packet
-                    packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len);
+                    packet =
+                        recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, running);
                     break;
                 }
                 default:
@@ -281,6 +287,12 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
         }
     } catch (TimeoutException& e) {
         std::cout << "Timeout" << std::endl;
+        exit(EXIT_FAILURE);
+    } catch (InterruptException& e) {
+        std::cout << "Interrupted" << std::endl;
+        // TODO: Only send error if transfer is in progress
+        packetBuilder.createERROR(ErrorCode::NotDefined, "Interrupted by user");
+        send(sock, packetBuilder, clientAddr, &args.address);
         exit(EXIT_FAILURE);
     }
 }
@@ -294,6 +306,8 @@ int main(int argc, char* argv[]) {
 
     // Turn off buffering so we can see stdout and stderr in sync
     setbuf(stdout, NULL);
+
+    std::signal(SIGINT, [](int) { running.store(false); });
 
     // Create client address
     struct sockaddr_in clientAddr;

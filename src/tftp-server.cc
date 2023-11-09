@@ -2,14 +2,24 @@
  * @author Josef Kuchař (xkucha28)
  */
 
+#include <atomic>
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include "packet-builder.h"
 #include "packet.h"
 #include "server-args.h"
 #include "utils.h"
+
+// Main socket
+int sock = 0;
+// List of threads
+std::vector<std::thread> threads;
+// Flag if running
+std::atomic<bool> running(true);
 
 enum class State { Start, StartRecieve, Recieve, Send, End };
 
@@ -18,6 +28,12 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     srand(time(NULL));
     // Turn off buffering so we can see stdout and stderr in sync
     setbuf(stdout, NULL);
+    // Set up the signal handler
+    struct sigaction a;
+    a.sa_flags = 0;
+    a.sa_handler = [](int) {};
+    sigemptyset(&a.sa_mask);
+    sigaction(SIGUSR1, &a, NULL);
 
     int sock = 0, opt = 1;
 
@@ -130,8 +146,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
 
                             send(sock, packetBuilder, &server_addr, &client_addr);
 
-                            Packet packet =
-                                recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                            Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr,
+                                                    &len, running);
                             if (std::holds_alternative<ACKPacket>(packet)) {
                                 ACKPacket ack = std::get<ACKPacket>(packet);
                                 if (ack.block == 0) {
@@ -231,7 +247,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     break;
                 }
                 case State::Recieve: {
-                    Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                    Packet packet =
+                        recieve(sock, packetBuilder, &client_addr, &server_addr, &len, running);
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
                         if (data.block == currentBlock) {
@@ -280,7 +297,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                     packetBuilder.createDATA(currentBlock, fileBuffer, bytesRead);
                     send(sock, packetBuilder, &server_addr, &client_addr);
 
-                    Packet packet = recieve(sock, packetBuilder, &client_addr, &server_addr, &len);
+                    Packet packet =
+                        recieve(sock, packetBuilder, &client_addr, &server_addr, &len, running);
                     if (std::holds_alternative<ACKPacket>(packet)) {
                         ACKPacket ack = std::get<ACKPacket>(packet);
                         if (ack.block == currentBlock) {
@@ -295,6 +313,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         packetBuilder.createERROR(ErrorCode::IllegalOperation,
                                                   "Expected ACK packet");
                         send(sock, packetBuilder, &server_addr, &client_addr);
+                        state = State::End;
                         break;
                     }
 
@@ -309,6 +328,10 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
         }
     } catch (TimeoutException& e) {
         std::cout << "Timeout, aborting" << std::endl;
+    } catch (InterruptException& e) {
+        std::cout << "Interrupted, aborting" << std::endl;
+        packetBuilder.createERROR(ErrorCode::NotDefined, "Server is shutting down");
+        send(sock, packetBuilder, &server_addr, &client_addr);
     } catch (std::filesystem::filesystem_error& e) {
         packetBuilder.createERROR(ErrorCode::AccessViolation, "Filesystem error");
         send(sock, packetBuilder, &server_addr, &client_addr);
@@ -320,12 +343,17 @@ int main(int argc, char* argv[]) {
     setbuf(stdout, NULL);
 
     ServerArgs args(argc, argv);
-    int sock = 0;
     int opt = 1;
     char buffer[BUFSIZE] = {0};
     socklen_t len = sizeof(args.address);
     PacketBuilder packetBuilder(buffer);
     struct sockaddr_in client_addr;
+
+    // Register signal handler
+    std::signal(SIGINT, [](int) {
+        close(sock);
+        running.store(false);
+    });
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
         std::cout << "Failed to create socket" << std::endl;
@@ -346,10 +374,32 @@ int main(int argc, char* argv[]) {
 
     // Main loop
     while (true) {
-        Packet packet = recieve(sock, packetBuilder, &client_addr, &args.address, &len, -1, true);
-        std::cout << "Received packet on main thread, creating new thread..." << std::endl;
-        std::thread client_thread(client_handler, client_addr, packet, args.path);
-        client_thread.detach();
+        try {
+            Packet packet =
+                recieve(sock, packetBuilder, &client_addr, &args.address, &len, running, -1, true);
+            std::cout << "Received packet on main thread, creating new thread..." << std::endl;
+            threads.push_back(std::thread(client_handler, client_addr, packet, args.path));
+        } catch (InterruptException& e) {
+            // This means that the signal handler was called, so we can just exit
+            break;
+        }
     }
+
+    std::cout << "Closing all client sockets..." << std::endl;
+
+    // Send signal to all threads to close their sockets
+    for (std::thread& thread : threads) {
+        pthread_kill(thread.native_handle(), SIGUSR1);
+    }
+
+    std::cout << "Joining all threads..." << std::endl;
+
+    // Join all threads
+    for (std::thread& thread : threads) {
+        thread.join();
+    }
+
+    std::cout << "Exiting..." << std::endl;
+
     return EXIT_SUCCESS;
 }

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <fstream>
 #include <tuple>
 #include "packet-builder.h"
@@ -12,6 +13,11 @@
 class TimeoutException : public std::exception {
    public:
     const char* what() const throw() { return "Timeout"; }
+};
+
+class InterruptException : public std::exception {
+   public:
+    const char* what() const throw() { return "Interrupted"; }
 };
 
 /**
@@ -41,6 +47,7 @@ Packet recieve(int sock,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
                socklen_t* len,
+               std::atomic<bool>& running,
                int depth = 0,
                bool saveAddr = false);
 

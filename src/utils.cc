@@ -3,6 +3,7 @@
  */
 
 #include "utils.h"
+#include <unistd.h>
 #include <cstring>
 #include <iostream>
 
@@ -15,6 +16,7 @@ void send(int sock,
         std::cout << "Packet lost: ";
     } else {
 #endif
+        sleep(1);
         sendto(sock, builder.getBuffer(), builder.getSize(), 0, (const struct sockaddr*)dest_addr,
                sizeof(*dest_addr));
 #ifdef PACKET_LOSS
@@ -29,16 +31,24 @@ Packet recieve(int sock,
                struct sockaddr_in* source_addr,
                struct sockaddr_in* dest_addr,
                socklen_t* len,
+               std::atomic<bool>& running,
                int depth,
                bool saveAddr) {
+    if (!running.load()) {
+        throw InterruptException();
+    }
+
     struct sockaddr_in currentSourceAddr;
     ssize_t n =
         recvfrom(sock, builder.getBuffer(), BUFSIZE, 0, (struct sockaddr*)&currentSourceAddr, len);
     if (n < 0) {
+        if (!running.load()) {
+            throw InterruptException();
+        }
         if (depth >= 0 && depth < RETRY_COUNT) {
             std::cout << "Timeout, resending last packet (below)" << std::endl;
             send(sock, builder, dest_addr, source_addr);
-            return recieve(sock, builder, source_addr, dest_addr, len, depth + 1);
+            return recieve(sock, builder, source_addr, dest_addr, len, running, depth + 1);
         } else {
             throw TimeoutException();
         }
@@ -57,7 +67,7 @@ Packet recieve(int sock,
             builder.createERROR(ErrorCode::UnknownTID, "Packet from wrong address");
             send(sock, builder, dest_addr, &currentSourceAddr);
 
-            return recieve(sock, builder, source_addr, dest_addr, len, depth);
+            return recieve(sock, builder, source_addr, dest_addr, len, running, depth);
         }
     }
 
