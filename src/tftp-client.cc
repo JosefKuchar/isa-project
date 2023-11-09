@@ -32,16 +32,17 @@ std::atomic<bool> running(true);
  * @param args Client arguments
  * @param tv Timeout
  */
-void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, struct timeval tv) {
+bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, struct timeval tv) {
     State state = args.send ? State::StartSend : State::StartRecieve;
     int blkSize = 1024;
     char buffer[BUFSIZE] = {0};
-    std::unique_ptr<char[]> file_buf;
+    char file_buf[BUFSIZE] = {0};
     PacketBuilder packetBuilder(buffer);
     Packet packet;
     int block_count = 1;
     bool next_block = true;
     size_t blen = 0;
+    bool success = false;
 
     try {
         while (state != State::End) {
@@ -66,7 +67,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                 packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                           "Invalid option");
                                 send(sock, packetBuilder, clientAddr, &args.address);
-                                exit(EXIT_FAILURE);
+                                state = State::End;
+                                break;
                             }
 
                             // Parse options
@@ -75,7 +77,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
                                     send(sock, packetBuilder, clientAddr, &args.address);
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                                 blkSize = options->blkSize.value();
                             }
@@ -84,13 +87,15 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Timeout does not match");
                                     send(sock, packetBuilder, clientAddr, &args.address);
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
                                     std::cout << "Set timeout failed" << std::endl;
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                             }
 
@@ -98,7 +103,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         } else {
                             packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
                             send(sock, packetBuilder, clientAddr, &args.address);
-                            exit(EXIT_FAILURE);
+                            state = State::End;
+                            break;
                         }
 
                         state = State::InitTransfer;
@@ -109,7 +115,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
-                        exit(EXIT_FAILURE);
+                        state = State::End;
+                        break;
                     }
                     break;
                 }
@@ -134,7 +141,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                 packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                           "Invalid option");
                                 send(sock, packetBuilder, clientAddr, &args.address);
-                                exit(EXIT_FAILURE);
+                                state = State::End;
+                                break;
                             }
 
                             // Parse options
@@ -143,7 +151,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Invalid block size");
                                     send(sock, packetBuilder, clientAddr, &args.address);
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                                 blkSize = options->blkSize.value();
                             }
@@ -152,13 +161,15 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     packetBuilder.createERROR(ErrorCode::InvalidOption,
                                                               "Timeout does not match");
                                     send(sock, packetBuilder, clientAddr, &args.address);
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
                                     std::cout << "Set timeout failed" << std::endl;
-                                    exit(EXIT_FAILURE);
+                                    state = State::End;
+                                    break;
                                 }
                             }
 
@@ -166,7 +177,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         } else {
                             packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
                             send(sock, packetBuilder, clientAddr, &args.address);
-                            exit(EXIT_FAILURE);
+                            state = State::End;
+                            break;
                         }
 
                         while (true) {
@@ -184,8 +196,13 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             } else {
                                 // Unexpected packet
                                 std::cout << "Unexpected packet" << std::endl;
-                                exit(EXIT_FAILURE);
+                                state = State::End;
+                                break;
                             }
+                        }
+
+                        if (state == State::End) {
+                            break;
                         }
 
                         state = State::InitTransfer;
@@ -196,13 +213,13 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
-                        exit(EXIT_FAILURE);
+                        state = State::End;
+                        break;
                     }
                     break;
                 }
                 case State::InitTransfer: {
                     // Allocate file buffer
-                    file_buf = std::make_unique<char[]>(blkSize);
                     if (args.send) {
                         state = State::Send;
                     } else {
@@ -213,16 +230,17 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                 case State::Send: {
                     if (next_block) {
                         // Read file
-                        blen = fread(file_buf.get(), 1, blkSize, args.input_file);
+                        blen = fread(file_buf, 1, blkSize, args.input_file);
                         std::cout << "Read " << blen << " bytes" << std::endl;
                         if (blen == 0) {
+                            success = true;
                             state = State::End;
                             break;
                         }
                     }
 
                     // Create and send DATA packet
-                    packetBuilder.createDATA(block_count, file_buf.get(), blen);
+                    packetBuilder.createDATA(block_count, file_buf, blen);
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
@@ -245,7 +263,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
-                        exit(EXIT_FAILURE);
+                        state = State::End;
+                        break;
                     }
                     break;
                 }
@@ -265,6 +284,7 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         send(sock, packetBuilder, clientAddr, &args.address);
 
                         if (data.len < (size_t)blkSize) {
+                            success = true;
                             state = State::End;
                             break;
                         }
@@ -273,7 +293,8 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
-                        exit(EXIT_FAILURE);
+                        state = State::End;
+                        break;
                     }
 
                     // Recieve packet
@@ -287,14 +308,24 @@ void handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
         }
     } catch (TimeoutException& e) {
         std::cout << "Timeout" << std::endl;
-        exit(EXIT_FAILURE);
     } catch (InterruptException& e) {
         std::cout << "Interrupted" << std::endl;
         // TODO: Only send error if transfer is in progress
         packetBuilder.createERROR(ErrorCode::NotDefined, "Interrupted by user");
         send(sock, packetBuilder, clientAddr, &args.address);
-        exit(EXIT_FAILURE);
     }
+
+    // Close file
+    fclose(args.input_file);
+    if (!args.send && !success) {
+        // Remove file if transfer was not successful
+        std::cout << "Removing file after failed transfer" << std::endl;
+        remove(args.input_filepath.c_str());
+    }
+    // Close socket
+    close(sock);
+
+    return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 int main(int argc, char* argv[]) {
@@ -329,26 +360,24 @@ int main(int argc, char* argv[]) {
     // Create socket
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         std::cout << "Socket creation error" << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     // Bind socket to our address
     if (bind(sock, (const struct sockaddr*)&clientAddr, sizeof(clientAddr)) < 0) {
         std::cout << "Bind failed" << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     // Read assigned port
     if (getsockname(sock, (struct sockaddr*)&clientAddr, &clientLen)) {
         std::cout << "Reading binded port failed" << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     // Set timeout
     if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         std::cout << "Set timeout failed" << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     // Handle transfer
-    handleTransfer(sock, &clientAddr, args, tv);
-
-    return EXIT_SUCCESS;
+    return handleTransfer(sock, &clientAddr, args, tv);
 }

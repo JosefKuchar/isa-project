@@ -85,6 +85,7 @@ ClientArgs::ClientArgs(int argc, char** argv) {
     if (source_file_set) {
         // Write to file
         this->input_file = fopen(source_file.c_str(), "wb");
+        this->input_filepath = source_file;
         if (this->input_file == nullptr) {
             this->printHelp();
             std::cout << "Error opening file" << std::endl;
@@ -107,6 +108,9 @@ ClientArgs::ClientArgs(int argc, char** argv) {
             break;
         }
     }
+
+    // Free address info
+    freeaddrinfo(addrs);
 
     // Set port
     this->port = htons(parsed_port);

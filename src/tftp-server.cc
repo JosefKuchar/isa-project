@@ -42,7 +42,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     server_addr.sin_port = htons(0);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     socklen_t len = sizeof(server_addr);
-    struct timeval tv;
+    struct timeval tv = {};
     tv.tv_sec = 1;
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
@@ -72,6 +72,8 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     State state = State::Start;
     std::fstream file;
 
+    bool success = false;
+    bool fileCreated = false;
     bool nextBlock = true;
     int bytesRead = 0;
     bool netascii = false;
@@ -191,6 +193,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             state = State::End;
                             break;
                         }
+                        fileCreated = true;
 
                         if (wrq.mode == "netascii") {
                             netascii = true;
@@ -269,6 +272,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         packetBuilder.createACK(currentBlock - 1);
                         send(sock, packetBuilder, &server_addr, &client_addr);
                         if (data.len < (size_t)blockSize) {
+                            success = true;
                             state = State::End;
                         }
                     } else {
@@ -336,6 +340,13 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
         packetBuilder.createERROR(ErrorCode::AccessViolation, "Filesystem error");
         send(sock, packetBuilder, &server_addr, &client_addr);
     }
+
+    file.close();
+    if (!success && fileCreated) {
+        std::cout << "Removing file after failed transfer" << std::endl;
+        std::filesystem::remove(path);
+    }
+    close(sock);
 }
 
 int main(int argc, char* argv[]) {
@@ -347,7 +358,7 @@ int main(int argc, char* argv[]) {
     char buffer[BUFSIZE] = {0};
     socklen_t len = sizeof(args.address);
     PacketBuilder packetBuilder(buffer);
-    struct sockaddr_in client_addr;
+    struct sockaddr_in client_addr = {};
 
     // Register signal handler
     std::signal(SIGINT, [](int) {
@@ -385,21 +396,17 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "Closing all client sockets..." << std::endl;
-
     // Send signal to all threads to close their sockets
+    std::cout << "Sending signal to all threads..." << std::endl;
     for (std::thread& thread : threads) {
         pthread_kill(thread.native_handle(), SIGUSR1);
     }
 
-    std::cout << "Joining all threads..." << std::endl;
-
     // Join all threads
+    std::cout << "Joining all threads..." << std::endl;
     for (std::thread& thread : threads) {
         thread.join();
     }
-
-    std::cout << "Exiting..." << std::endl;
 
     return EXIT_SUCCESS;
 }

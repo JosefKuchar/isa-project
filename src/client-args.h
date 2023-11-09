@@ -18,6 +18,8 @@ class ClientArgs {
     in_port_t port;
     // Input file
     FILE* input_file;
+    // Input file path
+    std::string input_filepath;
     // Destination file path
     std::string dest_filepath;
     // Whether to send or recieve
