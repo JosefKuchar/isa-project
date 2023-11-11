@@ -6,6 +6,7 @@
 #include <atomic>
 #include <csignal>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include "arpa/inet.h"
 #include "client-args.h"
@@ -234,6 +235,15 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         std::cout << "Read " << blen << " bytes" << std::endl;
                         if (blen == 0) {
                             success = true;
+                            state = State::End;
+                            break;
+                        }
+
+                        if (block_count == std::numeric_limits<uint16_t>::max()) {
+                            std::cout << "Block count overflow" << std::endl;
+                            packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                      "Block count overflow");
+                            send(sock, packetBuilder, clientAddr, &args.address);
                             state = State::End;
                             break;
                         }

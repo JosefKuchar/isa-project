@@ -233,7 +233,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             if (options->tSize.has_value()) {
                                 packetBuilder.addTsizeOption(options->tSize.value());
                             }
-
+                            // TODO: Respond with ACK if no options found
                             send(sock, packetBuilder, &server_addr, &client_addr);
                         } else {
                             packetBuilder.createACK(0);

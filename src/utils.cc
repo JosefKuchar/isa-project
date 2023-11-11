@@ -16,7 +16,7 @@ void send(int sock,
         std::cout << "Packet lost: ";
     } else {
 #endif
-        sleep(1);
+        // sleep(1);
         sendto(sock, builder.getBuffer(), builder.getSize(), 0, (const struct sockaddr*)dest_addr,
                sizeof(*dest_addr));
 #ifdef PACKET_LOSS
