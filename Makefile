@@ -1,6 +1,6 @@
 # Author: Josef Kuchař (xkucha28)
 
-CPPFLAGS = -std=c++20 -O2 -Wall -Wextra -g
+CPPFLAGS = -std=c++17 -O2 -Wall -Wextra -g
 
 # Get all .c files
 SRCS = $(wildcard src/*.cc)
@@ -45,4 +45,4 @@ run_server: tftp-server
 	./tftp-server -p 1234 files
 
 tar:
-	tar cvf xkucha28.tar src/*.cc src/*.h Makefile README.md
+	tar cvf xkucha28.tar src/*.cc src/*.h Makefile README manual.pdf

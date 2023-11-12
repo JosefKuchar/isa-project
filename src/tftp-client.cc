@@ -94,6 +94,9 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                 tv.tv_sec = options->timeout.value();
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
+                                    packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                              "Set timeout failed");
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     std::cout << "Set timeout failed" << std::endl;
                                     state = State::End;
                                     break;
@@ -116,6 +119,8 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     } else {
                         // Unexpected packet
                         std::cout << "Unexpected packet" << std::endl;
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation, "Unexpected packet");
+                        send(sock, packetBuilder, clientAddr, &args.address);
                         state = State::End;
                         break;
                     }
@@ -169,6 +174,9 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                 if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
                                     0) {
                                     std::cout << "Set timeout failed" << std::endl;
+                                    packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                              "Set timeout failed");
+                                    send(sock, packetBuilder, clientAddr, &args.address);
                                     state = State::End;
                                     break;
                                 }
