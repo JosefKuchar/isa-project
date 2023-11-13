@@ -254,6 +254,13 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                         recieve(sock, packetBuilder, &client_addr, &server_addr, &len, running);
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
+                        if (data.len > (size_t)blockSize) {
+                            packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                      "Packet size is larger than block size");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                        }
+
                         if (data.block == currentBlock) {
                             currentBlock++;
 

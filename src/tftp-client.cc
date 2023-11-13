@@ -289,6 +289,13 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                 case State::Recieve: {
                     if (std::holds_alternative<DATAPacket>(packet)) {
                         DATAPacket data = std::get<DATAPacket>(packet);
+                        if (data.len > (size_t)blkSize) {
+                            packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                      "Packet size is larger than block size");
+                            send(sock, packetBuilder, clientAddr, &args.address);
+                            state = State::End;
+                        }
+
                         // Check block number (we are expecting the next block)
                         if (data.block == block_count) {
                             // Write to file
