@@ -44,6 +44,7 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
     bool next_block = true;
     size_t blen = 0;
     bool success = false;
+    bool connected = false;
 
     try {
         while (state != State::End) {
@@ -58,6 +59,7 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len,
                                      running, 0, true);
+                    connected = true;
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
@@ -137,6 +139,7 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len,
                                      running, 0, true);
+                    connected = true;
 
                     // Options
                     if (std::holds_alternative<OACKPacket>(packet)) {
@@ -335,9 +338,11 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
         std::cout << "Timeout" << std::endl;
     } catch (InterruptException& e) {
         std::cout << "Interrupted" << std::endl;
-        // TODO: Only send error if transfer is in progress
-        packetBuilder.createERROR(ErrorCode::NotDefined, "Interrupted by user");
-        send(sock, packetBuilder, clientAddr, &args.address);
+        // Only send error if transfer is in progress
+        if (connected) {
+            packetBuilder.createERROR(ErrorCode::NotDefined, "Interrupted by user");
+            send(sock, packetBuilder, clientAddr, &args.address);
+        }
     }
 
     // Close file
