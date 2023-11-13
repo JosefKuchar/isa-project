@@ -80,6 +80,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     bool lastWasR = false;
     int currentBlock = 1;
     int blockSize = DEFAULT_BLOCK_SIZE;
+    bool optionsFound = false;
 
     try {
         while (state != State::End) {
@@ -123,6 +124,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             if (options->blkSize.has_value()) {
                                 blockSize = options->blkSize.value();
                                 packetBuilder.addBlksizeOption(blockSize);
+                                optionsFound = true;
                             }
                             if (options->timeout.has_value()) {
                                 packetBuilder.addTimeoutOption(options->timeout.value());
@@ -132,6 +134,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                     std::cout << "Failed to set socket timeout" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
+                                optionsFound = true;
                             }
                             if (options->tSize.has_value()) {
                                 if (options->tSize.value() != 0) {
@@ -144,6 +147,13 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                 int size = getFilesize(file, netascii);
                                 std::cout << "Filesize: " << size << std::endl;
                                 packetBuilder.addTsizeOption(size);
+                                optionsFound = true;
+                            }
+
+                            if (!optionsFound) {
+                                // Proceed with transfer
+                                state = State::Send;
+                                break;
                             }
 
                             send(sock, packetBuilder, &server_addr, &client_addr);
@@ -220,6 +230,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             if (options->blkSize.has_value()) {
                                 blockSize = options->blkSize.value();
                                 packetBuilder.addBlksizeOption(blockSize);
+                                optionsFound = true;
                             }
                             if (options->timeout.has_value()) {
                                 packetBuilder.addTimeoutOption(options->timeout.value());
@@ -229,12 +240,19 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                     std::cout << "Failed to set socket timeout" << std::endl;
                                     exit(EXIT_FAILURE);
                                 }
+                                optionsFound = true;
                             }
                             if (options->tSize.has_value()) {
                                 packetBuilder.addTsizeOption(options->tSize.value());
+                                optionsFound = true;
                             }
-                            // TODO: Respond with ACK if no options found
-                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            // Respond with ACK if no options found
+                            if (!optionsFound) {
+                                packetBuilder.createACK(0);
+                                send(sock, packetBuilder, &server_addr, &client_addr);
+                            } else {
+                                send(sock, packetBuilder, &server_addr, &client_addr);
+                            }
                         } else {
                             packetBuilder.createACK(0);
                             send(sock, packetBuilder, &server_addr, &client_addr);
