@@ -52,21 +52,21 @@ Packet recieve(int sock,
                bool saveAddr = false);
 
 /**
- * Convert netascii to binary inplace
+ * Convert netascii to binary and return as vector
  * @param buffer Buffer
  * @param size Size of buffer
  * @return Tuple of (If last character was \r, Whether to remove last byte from file, newSize)
  */
-std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool lastWasR);
+std::tuple<bool, bool, std::vector<char>> netasciiToBinary(char* buffer,
+                                                           size_t size,
+                                                           bool lastWasR);
 
 /**
- * Convert binary to netascii inplace (clips if too long)
- * @param buffer Buffer
- * @param size Size of data
- * @param maxSize Maximum size of buffer
- * @return How many bytes were clipped
+ * Convert binary to netascii - adds to netasciiBuffer vector
+ * @param buffer Buffer with binary data
+ * @param netasciiBuffer Buffer for netascii data
  */
-int binaryToNetascii(char* buffer, size_t size, size_t maxSize);
+void binaryToNetascii(char* buffer, size_t size, std::vector<char>& netasciiBuffer);
 
 /**
  * Get filesize

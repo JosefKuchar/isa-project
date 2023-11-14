@@ -81,6 +81,7 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
     int currentBlock = 1;
     int blockSize = DEFAULT_BLOCK_SIZE;
     bool optionsFound = false;
+    std::vector<char> netasciiBuffer;
 
     try {
         while (state != State::End) {
@@ -289,9 +290,10 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                                 if (std::get<1>(ret)) {
                                     file.seekp(-1, std::ios::cur);
                                 }
-                                len = std::get<2>(ret);
+                                file.write(std::get<2>(ret).data(), std::get<2>(ret).size());
+                            } else {
+                                file.write(data.data, len);
                             }
-                            file.write(data.data, len);
                         }
 
                         packetBuilder.createACK(currentBlock - 1);
@@ -310,16 +312,23 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                 }
                 case State::Send: {
                     if (nextBlock) {
-                        file.read(fileBuffer, blockSize);
                         if (netascii) {
-                            int size = binaryToNetascii(fileBuffer, file.gcount(), blockSize);
-                            if (size < 0) {
-                                file.seekg(size, std::ios::cur);
-                                bytesRead = blockSize;
-                            } else {
-                                bytesRead = size;
+                            if (netasciiBuffer.size() < (size_t)blockSize) {
+                                // Fetch more data
+                                file.read(fileBuffer, blockSize);
+                                bytesRead = file.gcount();
+                                binaryToNetascii(fileBuffer, bytesRead, netasciiBuffer);
                             }
+
+                            // Write front of netascii buffer to fileBuffer
+                            size_t len = std::min((size_t)blockSize, netasciiBuffer.size());
+                            std::copy(netasciiBuffer.begin(), netasciiBuffer.begin() + len,
+                                      fileBuffer);
+                            netasciiBuffer.erase(netasciiBuffer.begin(),
+                                                 netasciiBuffer.begin() + len);
+                            bytesRead = len;
                         } else {
+                            file.read(fileBuffer, blockSize);
                             bytesRead = file.gcount();
                         }
                     }

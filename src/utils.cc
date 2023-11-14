@@ -74,41 +74,53 @@ Packet recieve(int sock,
     return packet;
 }
 
-std::tuple<bool, bool, size_t> netasciiToBinary(char* buffer, size_t size, bool lastWasR) {
-    bool lastR = buffer[size - 1] == '\r';
-    bool removeLast = lastWasR && buffer[0] == '\n';
-    size_t i = 0;
-    while (i < size - 1) {
-        if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
-            buffer[i] = '\n';
-            std::memmove(buffer + i + 1, buffer + i + 2, size - i - 2);
-            size--;
+std::tuple<bool, bool, std::vector<char>> netasciiToBinary(char* buffer,
+                                                           size_t size,
+                                                           bool lastWasR) {
+    std::vector<char> result;
+    bool lastIsR = buffer[size - 1] == '\r';
+    bool removeLast = false;
+
+    for (size_t i = 0; i < size; i++) {
+        if (i == 0 && lastWasR) {
+            if (buffer[i] == '\n') {
+                result.push_back('\n');
+                removeLast = true;
+            } else if (buffer[i] == '\0') {
+                result.push_back('\r');
+                removeLast = true;
+            } else {
+                result.push_back(buffer[i]);
+            }
+        } else if (i + 1 < size) {
+            if (buffer[i] == '\r' && buffer[i + 1] == '\n') {
+                result.push_back('\n');
+                i++;
+            } else if (buffer[i] == '\r' && buffer[i] == '\0') {
+                result.push_back('\r');
+                i++;
+            } else {
+                result.push_back(buffer[i]);
+            }
         } else {
-            i++;
+            result.push_back(buffer[i]);
         }
     }
-    return std::make_tuple(lastR, removeLast, size);
+    return std::make_tuple(lastIsR, removeLast, result);
 }
 
-int binaryToNetascii(char* buffer, size_t size, size_t maxSize) {
-    size_t i = 0;
-    size_t clipped = 0;
-    while (i < size) {
+void binaryToNetascii(char* buffer, size_t size, std::vector<char>& netasciiBuffer) {
+    for (size_t i = 0; i < size; i++) {
         if (buffer[i] == '\n') {
-            if (i + 1 >= maxSize) {
-                clipped += size - i;
-                size = i;
-                break;
-            }
-            std::memmove(buffer + i + 2, buffer + i + 1, size - i - 1);
-            buffer[i] = '\r';
-            buffer[i + 1] = '\n';
-            i += 2;
+            netasciiBuffer.push_back('\r');
+            netasciiBuffer.push_back('\n');
+        } else if (buffer[i] == '\r') {
+            netasciiBuffer.push_back('\r');
+            netasciiBuffer.push_back('\0');
         } else {
-            i++;
+            netasciiBuffer.push_back(buffer[i]);
         }
     }
-    return size - clipped;
 }
 
 int getFilesize(std::fstream& file, bool netascii) {
