@@ -84,6 +84,8 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     break;
                                 }
                                 blkSize = options->blkSize.value();
+                            } else {
+                                blkSize = DEFAULT_BLOCK_SIZE;
                             }
                             if (options->timeout.has_value()) {
                                 if (options->timeout.value() != DEFAULT_TIMEOUT) {
@@ -164,6 +166,8 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                     break;
                                 }
                                 blkSize = options->blkSize.value();
+                            } else {
+                                blkSize = DEFAULT_BLOCK_SIZE;
                             }
                             if (options->timeout.has_value()) {
                                 if (options->timeout.value() != DEFAULT_TIMEOUT) {
