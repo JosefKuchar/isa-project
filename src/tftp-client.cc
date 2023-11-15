@@ -248,11 +248,6 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         // Read file
                         blen = fread(file_buf, 1, blkSize, args.input_file);
                         std::cout << "Read " << blen << " bytes" << std::endl;
-                        if (blen == 0) {
-                            success = true;
-                            state = State::End;
-                            break;
-                        }
 
                         if (block_count == std::numeric_limits<uint16_t>::max()) {
                             std::cout << "Block count overflow" << std::endl;
@@ -267,6 +262,12 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     // Create and send DATA packet
                     packetBuilder.createDATA(block_count, file_buf, blen);
                     send(sock, packetBuilder, clientAddr, &args.address);
+
+                    if (blen == 0) {
+                        success = true;
+                        state = State::End;
+                        break;
+                    }
 
                     // Recieve packet
                     packet =
