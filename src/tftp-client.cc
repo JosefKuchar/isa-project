@@ -263,12 +263,6 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                     packetBuilder.createDATA(block_count, file_buf, blen);
                     send(sock, packetBuilder, clientAddr, &args.address);
 
-                    if (blen == 0) {
-                        success = true;
-                        state = State::End;
-                        break;
-                    }
-
                     // Recieve packet
                     packet =
                         recieve(sock, packetBuilder, &args.address, clientAddr, &args.len, running);
@@ -279,6 +273,12 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         if (ack.block == block_count) {
                             block_count++;
                             next_block = true;
+
+                            if (blen == 0) {
+                                success = true;
+                                state = State::End;
+                                break;
+                            }
                         } else {
                             // Old ACK packet, resend DATA packet
                             next_block = false;
