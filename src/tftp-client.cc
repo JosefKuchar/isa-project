@@ -248,11 +248,6 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         // Read file
                         blen = fread(file_buf, 1, blkSize, args.input_file);
                         std::cout << "Read " << blen << " bytes" << std::endl;
-                        if (blen == 0) {
-                            success = true;
-                            state = State::End;
-                            break;
-                        }
 
                         if (block_count == std::numeric_limits<uint16_t>::max()) {
                             std::cout << "Block count overflow" << std::endl;
@@ -278,6 +273,12 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                         if (ack.block == block_count) {
                             block_count++;
                             next_block = true;
+
+                            if (blen == 0) {
+                                success = true;
+                                state = State::End;
+                                break;
+                            }
                         } else {
                             // Old ACK packet, resend DATA packet
                             next_block = false;
