@@ -14,8 +14,6 @@
 #include "server-args.h"
 #include "utils.h"
 
-//TODO: Handle stoi/stoll errors
-
 // Main socket
 int sock = 0;
 // List of threads

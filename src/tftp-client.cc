@@ -274,7 +274,7 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             block_count++;
                             next_block = true;
 
-                            if (blen == 0) {
+                            if (blen < (size_t)blkSize) {
                                 success = true;
                                 state = State::End;
                                 break;

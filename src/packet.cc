@@ -47,14 +47,14 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
 
             if (option == "blksize") {
                 options.blkSize = std::stoi(value);
-                if (options.blkSize < 8 && options.blkSize > 65464) {
+                if (options.blkSize < 8 || options.blkSize > 65464) {
                     std::cout << "Invalid block size: " << options.blkSize.value() << std::endl;
                     options.valid = false;
                     break;
                 }
             } else if (option == "timeout") {
                 options.timeout = std::stoi(value);
-                if (options.timeout < 0 && options.timeout > 255) {
+                if (options.timeout < 0 || options.timeout > 255) {
                     std::cout << "Invalid timeout: " << options.timeout.value() << std::endl;
                     options.valid = false;
                     break;
