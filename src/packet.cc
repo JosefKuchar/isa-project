@@ -71,6 +71,9 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
             std::cout << "Invalid value: " << value << std::endl;
             options.valid = false;
             break;
+        } catch (std::out_of_range& e) {
+            std::cout << "Value out of range: " << value << std::endl;
+            options.valid = false;
         }
     }
 
