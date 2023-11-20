@@ -2,6 +2,7 @@
  * @author Josef Kuchař (xkucha28)
  */
 
+#include <unistd.h>
 #include <atomic>
 #include <csignal>
 #include <filesystem>
