@@ -50,4 +50,4 @@ Implementace TFTP klienta a serveru v jazyce C++. Vše je implementováno dle za
   - `utils.cc`
   - `utils.h`
 - `Makefile`
-- `README.md`
+- `README`
