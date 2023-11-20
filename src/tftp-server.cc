@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <mutex>
 #include <thread>
 #include "packet-builder.h"
@@ -295,12 +296,23 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             } else {
                                 file.write(data.data, len);
                             }
+                        } else if (data.block > currentBlock) {
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                      "DATA block number is too high");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
                         }
 
                         packetBuilder.createACK(currentBlock - 1);
                         send(sock, packetBuilder, &server_addr, &client_addr);
                         if (data.len < (size_t)blockSize) {
                             success = true;
+                            state = State::End;
+                        } else if (data.block == std::numeric_limits<uint16_t>::max()) {
+                            packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                      "Block number overflow");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
                             state = State::End;
                         }
                     } else {
@@ -332,6 +344,14 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             file.read(fileBuffer, blockSize);
                             bytesRead = file.gcount();
                         }
+                        if (bytesRead == blockSize &&
+                            currentBlock == std::numeric_limits<uint16_t>::max()) {
+                            packetBuilder.createERROR(ErrorCode::NotDefined,
+                                                      "Block number overflow");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
+                        }
                     }
                     packetBuilder.createDATA(currentBlock, fileBuffer, bytesRead);
                     send(sock, packetBuilder, &server_addr, &client_addr);
@@ -344,6 +364,12 @@ void client_handler(struct sockaddr_in client_addr, Packet packet, std::filesyst
                             std::cout << "Confirmed block " << currentBlock << std::endl;
                             currentBlock++;
                             nextBlock = true;
+                        } else if (ack.block > currentBlock) {
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                      "ACK block number is too high");
+                            send(sock, packetBuilder, &server_addr, &client_addr);
+                            state = State::End;
+                            break;
                         } else {
                             nextBlock = false;
                             break;

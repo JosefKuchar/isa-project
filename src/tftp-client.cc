@@ -18,7 +18,6 @@
 enum class State {
     StartSend,
     StartRecieve,
-    InitTransfer,
     Send,
     Recieve,
     End,
@@ -33,9 +32,9 @@ std::atomic<bool> running(true);
  * @param args Client arguments
  * @param tv Timeout
  */
-bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, struct timeval tv) {
+bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args) {
     State state = args.send ? State::StartSend : State::StartRecieve;
-    int blkSize = 1024;
+    int blkSize = DEFAULT_BLOCK_SIZE;
     char buffer[BUFSIZE] = {0};
     char file_buf[BUFSIZE] = {0};
     PacketBuilder packetBuilder(buffer);
@@ -52,77 +51,15 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                 case State::StartSend: {
                     // Create and send WRQ packet
                     packetBuilder.createWRQ(args.dest_filepath, "octet");
-                    packetBuilder.addBlksizeOption(blkSize);
-                    packetBuilder.addTimeoutOption(DEFAULT_TIMEOUT);
                     send(sock, packetBuilder, clientAddr, &args.address);
-
                     // Recieve packet
                     packet = recieve(sock, packetBuilder, &args.address, clientAddr, &args.len,
                                      running, 0, true);
                     connected = true;
-
-                    // Options
-                    if (std::holds_alternative<OACKPacket>(packet)) {
-                        OACKPacket oack = std::get<OACKPacket>(packet);
-                        std::optional<Options> options = parseOptionsToStruct(oack.options);
-                        if (options.has_value()) {
-                            if (!options->valid) {
-                                packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                          "Invalid option");
-                                send(sock, packetBuilder, clientAddr, &args.address);
-                                state = State::End;
-                                break;
-                            }
-
-                            // Parse options
-                            if (options->blkSize.has_value()) {
-                                if (options->blkSize.value() > blkSize) {
-                                    packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                              "Invalid block size");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    state = State::End;
-                                    break;
-                                }
-                                blkSize = options->blkSize.value();
-                            } else {
-                                blkSize = DEFAULT_BLOCK_SIZE;
-                            }
-                            if (options->timeout.has_value()) {
-                                if (options->timeout.value() != DEFAULT_TIMEOUT) {
-                                    packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                              "Timeout does not match");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    state = State::End;
-                                    break;
-                                }
-                                tv.tv_sec = options->timeout.value();
-                                if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
-                                    0) {
-                                    packetBuilder.createERROR(ErrorCode::NotDefined,
-                                                              "Set timeout failed");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    std::cout << "Set timeout failed" << std::endl;
-                                    state = State::End;
-                                    break;
-                                }
-                            }
-
-                            state = State::InitTransfer;
-                        } else {
-                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
-                            send(sock, packetBuilder, clientAddr, &args.address);
-                            state = State::End;
-                            break;
-                        }
-
-                        state = State::InitTransfer;
-                    } else if (std::holds_alternative<ACKPacket>(packet)) {
-                        // Fall back to default block size
-                        blkSize = DEFAULT_BLOCK_SIZE;
-                        state = State::InitTransfer;
+                    if (std::holds_alternative<ACKPacket>(packet)) {
+                        state = State::Send;
                     } else {
                         // Unexpected packet
-                        std::cout << "Unexpected packet" << std::endl;
                         packetBuilder.createERROR(ErrorCode::IllegalOperation, "Unexpected packet");
                         send(sock, packetBuilder, clientAddr, &args.address);
                         state = State::End;
@@ -133,9 +70,6 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                 case State::StartRecieve: {
                     // Create and send RRQ packet
                     packetBuilder.createRRQ(args.dest_filepath, "octet");
-                    packetBuilder.addTsizeOption(0);
-                    packetBuilder.addBlksizeOption(blkSize);
-                    packetBuilder.addTimeoutOption(DEFAULT_TIMEOUT);
                     send(sock, packetBuilder, clientAddr, &args.address);
 
                     // Recieve packet
@@ -143,103 +77,14 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                      running, 0, true);
                     connected = true;
 
-                    // Options
-                    if (std::holds_alternative<OACKPacket>(packet)) {
-                        OACKPacket oack = std::get<OACKPacket>(packet);
-                        std::optional<Options> options = parseOptionsToStruct(oack.options);
-                        if (options.has_value()) {
-                            if (!options->valid) {
-                                packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                          "Invalid option");
-                                send(sock, packetBuilder, clientAddr, &args.address);
-                                state = State::End;
-                                break;
-                            }
-
-                            // Parse options
-                            if (options->blkSize.has_value()) {
-                                if (options->blkSize.value() > blkSize) {
-                                    packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                              "Invalid block size");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    state = State::End;
-                                    break;
-                                }
-                                blkSize = options->blkSize.value();
-                            } else {
-                                blkSize = DEFAULT_BLOCK_SIZE;
-                            }
-                            if (options->timeout.has_value()) {
-                                if (options->timeout.value() != DEFAULT_TIMEOUT) {
-                                    packetBuilder.createERROR(ErrorCode::InvalidOption,
-                                                              "Timeout does not match");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    state = State::End;
-                                    break;
-                                }
-                                tv.tv_sec = options->timeout.value();
-                                if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) <
-                                    0) {
-                                    std::cout << "Set timeout failed" << std::endl;
-                                    packetBuilder.createERROR(ErrorCode::NotDefined,
-                                                              "Set timeout failed");
-                                    send(sock, packetBuilder, clientAddr, &args.address);
-                                    state = State::End;
-                                    break;
-                                }
-                            }
-
-                            state = State::InitTransfer;
-                        } else {
-                            packetBuilder.createERROR(ErrorCode::InvalidOption, "Expected options");
-                            send(sock, packetBuilder, clientAddr, &args.address);
-                            state = State::End;
-                            break;
-                        }
-
-                        while (true) {
-                            packetBuilder.createACK(0);
-                            send(sock, packetBuilder, clientAddr, &args.address);
-
-                            packet = recieve(sock, packetBuilder, &args.address, clientAddr,
-                                             &args.len, running);
-                            if (std::holds_alternative<DATAPacket>(packet)) {
-                                state = State::InitTransfer;
-                                break;
-                            } else if (std::holds_alternative<OACKPacket>(packet)) {
-                                // Old packet, resend ACK
-                                std::cout << "Old packet, resending ACK" << std::endl;
-                            } else {
-                                // Unexpected packet
-                                std::cout << "Unexpected packet" << std::endl;
-                                state = State::End;
-                                break;
-                            }
-                        }
-
-                        if (state == State::End) {
-                            break;
-                        }
-
-                        state = State::InitTransfer;
-                    } else if (std::holds_alternative<DATAPacket>(packet)) {
-                        // Fall back to default block size
-                        blkSize = 512;
-                        state = State::InitTransfer;
+                    if (std::holds_alternative<DATAPacket>(packet)) {
+                        state = State::Recieve;
                     } else {
                         // Unexpected packet
-                        std::cout << "Unexpected packet" << std::endl;
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation, "Unexpected packet");
+                        send(sock, packetBuilder, clientAddr, &args.address);
                         state = State::End;
                         break;
-                    }
-                    break;
-                }
-                case State::InitTransfer: {
-                    // Allocate file buffer
-                    if (args.send) {
-                        state = State::Send;
-                    } else {
-                        state = State::Recieve;
                     }
                     break;
                 }
@@ -279,16 +124,21 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                                 state = State::End;
                                 break;
                             }
+                        } else if (ack.block > block_count) {
+                            // Unexpected block number
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                      "ACK block number is too high");
+                            send(sock, packetBuilder, clientAddr, &args.address);
+                            state = State::End;
+                            break;
                         } else {
                             // Old ACK packet, resend DATA packet
                             next_block = false;
                         }
-                    } else if (std::holds_alternative<OACKPacket>(packet)) {
-                        // Old packet, resend DATA packet
-                        next_block = false;
                     } else {
                         // Unexpected packet
-                        std::cout << "Unexpected packet" << std::endl;
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation, "Unexpected packet");
+                        send(sock, packetBuilder, clientAddr, &args.address);
                         state = State::End;
                         break;
                     }
@@ -311,7 +161,15 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             fwrite(data.data, 1, data.len, args.input_file);
 
                             block_count++;
+                        } else if (data.block > block_count) {
+                            // Unexpected block number
+                            packetBuilder.createERROR(ErrorCode::IllegalOperation,
+                                                      "DATA block number is too high");
+                            send(sock, packetBuilder, clientAddr, &args.address);
+                            state = State::End;
+                            break;
                         }
+
                         // Create and send ACK packet
                         packetBuilder.createACK(block_count - 1);
                         send(sock, packetBuilder, clientAddr, &args.address);
@@ -321,11 +179,10 @@ bool handleTransfer(int sock, struct sockaddr_in* clientAddr, ClientArgs& args, 
                             state = State::End;
                             break;
                         }
-                    } else if (std::holds_alternative<OACKPacket>(packet)) {
-                        // Old packet, resend ACK packet
                     } else {
                         // Unexpected packet
-                        std::cout << "Unexpected packet" << std::endl;
+                        packetBuilder.createERROR(ErrorCode::IllegalOperation, "Unexpected packet");
+                        send(sock, packetBuilder, clientAddr, &args.address);
                         state = State::End;
                         break;
                     }
@@ -414,5 +271,5 @@ int main(int argc, char* argv[]) {
     }
 
     // Handle transfer
-    return handleTransfer(sock, &clientAddr, args, tv);
+    return handleTransfer(sock, &clientAddr, args);
 }
