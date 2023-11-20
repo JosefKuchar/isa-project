@@ -38,7 +38,7 @@ run_client_send: tftp-client
 
 run_client_recv: tftp-client
 	rm -f files/dest.txt
-	./tftp-client -p 1234 -h 127.0.0.1 -t lorem.txt -f files/dest.txt
+	./tftp-client -p 1234 -h 127.0.0.1 -t files/dest.txt -f lorem.txt
 	diff files/lorem.txt files/dest.txt
 
 run_server: tftp-server
