@@ -48,6 +48,13 @@ ClientArgs::ClientArgs(int argc, char** argv) {
         }
     }
 
+    if (source_file_set && dest_file_set) {
+        // Swap source and destination
+        std::string tmp = this->dest_filepath;
+        this->dest_filepath = source_file;
+        source_file = tmp;
+    }
+
     // Check if hostname is present
     if (!hostname_set) {
         this->printHelp();
