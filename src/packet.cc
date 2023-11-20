@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <set>
 #include <string>
 #include "enums.h"
 
@@ -39,11 +40,20 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
     }
 
     Options options;
+    std::set<std::string> s;
     options.valid = true;
     for (auto& [option, value] : opts) {
         try {
             // To lower
             std::transform(option.begin(), option.end(), option.begin(), ::tolower);
+
+            // Check if option is not duplicated
+            if (s.find(option) != s.end()) {
+                std::cout << "Duplicated option: " << option << std::endl;
+                options.valid = false;
+                break;
+            }
+            s.insert(option);
 
             if (option == "blksize") {
                 options.blkSize = std::stoi(value);
