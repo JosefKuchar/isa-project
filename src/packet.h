@@ -19,7 +19,7 @@ class InvalidStringException : public std::exception {
 struct Options {
     std::optional<int> blkSize;
     std::optional<int> timeout;
-    std::optional<int> tSize;
+    std::optional<long> tSize;
     bool valid;
 };
 

@@ -70,7 +70,7 @@ std::optional<Options> parseOptionsToStruct(std::vector<std::pair<std::string, s
                     break;
                 }
             } else if (option == "tsize") {
-                options.tSize = std::stoi(value);
+                options.tSize = std::stol(value);
                 if (options.tSize < 0) {
                     std::cout << "Invalid tsize: " << options.tSize.value() << std::endl;
                     options.valid = false;
